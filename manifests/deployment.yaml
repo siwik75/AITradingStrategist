@@ -1,0 +1,184 @@
+# =============================================================================
+# Trading Intelligence Agent — Kubernetes Deployment
+# Aligned with Generali Advisor Platform patterns:
+# - Dedicated ServiceAccount with IRSA
+# - Fargate-compatible (serverless)
+# - Resource quotas respected
+# - Vault integration for secrets
+# - Structured logging to stdout (FluentBit → CloudWatch)
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trading-intelligence-agent
+  namespace: ${NAMESPACE}  # kustomize variable
+  labels:
+    app: trading-intelligence-agent
+    tier: agent
+    version: ${IMAGE_TAG}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trading-intelligence-agent
+  template:
+    metadata:
+      labels:
+        app: trading-intelligence-agent
+        tier: agent
+      annotations:
+        # HashiCorp Vault — secret injection
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "trading-intelligence-agent"
+        vault.hashicorp.com/agent-inject-secret-llm: "secret/data/trading-agent/llm"
+        vault.hashicorp.com/agent-inject-template-llm: |
+          {{- with secret "secret/data/trading-agent/llm" -}}
+          export LLM_API_KEY="{{ .Data.data.api_key }}"
+          export LLM_GATEWAY_URL="{{ .Data.data.gateway_url }}"
+          {{- end }}
+    spec:
+      serviceAccountName: trading-intelligence-agent-sa
+      terminationGracePeriodSeconds: 30  # Disposability: graceful shutdown
+      containers:
+        - name: agent
+          image: ${ECR_REGISTRY}/trading-intelligence-agent:${IMAGE_TAG}
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: PORT
+              value: "8080"
+            - name: ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: trading-agent-config
+                  key: environment
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: trading-agent-config
+                  key: log_level
+            - name: LLM_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: trading-agent-config
+                  key: llm_model
+            - name: TRADING_SYMBOLS
+              valueFrom:
+                configMapKeyRef:
+                  name: trading-agent-config
+                  key: trading_symbols
+            - name: DRY_RUN
+              valueFrom:
+                configMapKeyRef:
+                  name: trading-agent-config
+                  key: dry_run
+            - name: AGENT_ID
+              value: "trading-intelligence-agent"
+            # Correlation ID from downstream (if present)
+            - name: X_CORRELATION_ID
+              value: ""
+          # Resource limits — respect namespace ResourceQuota
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          # Kubernetes probes — 16-Factor: Healthcheck
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # Security context
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: trading-intelligence-agent
+  namespace: ${NAMESPACE}
+spec:
+  selector:
+    app: trading-intelligence-agent
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+  type: ClusterIP
+
+---
+# ConfigMap — environment-specific configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trading-agent-config
+  namespace: ${NAMESPACE}
+data:
+  environment: "development"  # overridden per-environment via kustomize
+  log_level: "INFO"
+  llm_model: "claude-sonnet-4-20250514"
+  trading_symbols: '["BTC/USDT", "ETH/USDT"]'
+  dry_run: "true"
+
+---
+# ServiceAccount with IRSA (IAM Roles for Service Accounts)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: trading-intelligence-agent-sa
+  namespace: ${NAMESPACE}
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::${AWS_ACCOUNT_ID}:role/trading-intelligence-agent-role
+
+---
+# HPA — Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: trading-intelligence-agent-hpa
+  namespace: ${NAMESPACE}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: trading-intelligence-agent
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
