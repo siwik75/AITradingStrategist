@@ -11,8 +11,9 @@ correlation_id tracking, and graceful error handling.
 import asyncio
 import json
 import uuid
-from dataclasses import dataclass, field
-from typing import Callable, Any, Optional
+from collections.abc import Callable
+from dataclasses import dataclass
+
 import structlog
 
 from config.settings import get_config
@@ -30,7 +31,7 @@ class AgentConfig:
     temperature: float = 0.0
     system_prompt: str = ""
     max_iterations: int = 10
-    use_openai_gateway: bool = False  # True for GHO
+    use_openai_gateway: bool | None = None  # None = auto-select from config
 
 
 class BaseAgent:
@@ -47,31 +48,61 @@ class BaseAgent:
         self.app_config = get_config()
         self.tools = tools or []
         self._tool_map = {t.__name__: t for t in self.tools}
-        
-        # Resolve model
-        self.model = config.model or self.app_config.llm.model
-        
-        # Initialize LLM client based on mode
-        if config.use_openai_gateway:
+        self._anthropic_available = self.app_config.llm.has_anthropic_credentials()
+        self._openai_available = self.app_config.llm.has_gateway_credentials()
+        self._tool_schemas = []
+
+        # Resolve provider-specific models. An explicit AgentConfig.model overrides both.
+        self._anthropic_model = config.model or self.app_config.llm.model
+        self._openai_model = config.model or self.app_config.llm.openai_model
+        self.model = ""
+
+        # Initialize LLM client based on explicit config or env-driven auto-selection
+        if config.use_openai_gateway is True:
             self._init_openai_client()
-        else:
+        elif config.use_openai_gateway is False:
             self._init_anthropic_client()
+        else:
+            self._init_client_auto()
+
+    def _init_client_auto(self):
+        """Choose the primary LLM mode from available credentials."""
+        if self._anthropic_available:
+            self._init_anthropic_client()
+            return
+        if self._openai_available:
+            self._init_openai_client()
+            return
+        raise ValueError(
+            "No usable LLM credentials found. Configure ANTHROPIC_API_KEY, or set "
+            "LLM_API_KEY with LLM_GATEWAY_URL."
+        )
 
     def _init_anthropic_client(self):
         """Initialize Anthropic native client."""
         import anthropic
-        self.client = anthropic.Anthropic(api_key=self.app_config.llm.api_key)
+
+        if not self.app_config.llm.anthropic_api_key:
+            raise ValueError("ANTHROPIC_API_KEY is not configured.")
+
+        self.client = anthropic.Anthropic(api_key=self.app_config.llm.anthropic_api_key)
         self._mode = "anthropic"
+        self.model = self._anthropic_model
         self._tool_schemas = [build_tool_schema(t) for t in self.tools]
 
     def _init_openai_client(self):
         """Initialize OpenAI-compatible client (GHO Gateway)."""
         from openai import OpenAI
+
+        if not self.app_config.llm.gateway_api_key:
+            raise ValueError("LLM_API_KEY is not configured for the OpenAI-compatible gateway.")
+
         self.client = OpenAI(
-            api_key=self.app_config.llm.api_key,
+            api_key=self.app_config.llm.gateway_api_key,
             base_url=self.app_config.llm.gateway_url,
         )
         self._mode = "openai"
+        self.model = self._openai_model
         self._tool_schemas = [build_tool_schema_openai(t) for t in self.tools]
 
     async def run(
@@ -96,11 +127,46 @@ class BaseAgent:
             mode=self._mode,
             correlation_id=cid,
         )
-        
-        if self._mode == "anthropic":
-            return await self._run_anthropic(task, context, cid)
-        else:
+
+        try:
+            if self._mode == "anthropic":
+                return await self._run_anthropic(task, context, cid)
             return await self._run_openai(task, context, cid)
+        except Exception as exc:
+            if self._should_fallback_to_openai(exc):
+                log.warning(
+                    "agent.llm_fallback_to_openai",
+                    agent=self.agent_config.name,
+                    correlation_id=cid,
+                    error=str(exc),
+                    gateway_url=self.app_config.llm.gateway_url,
+                )
+                self._init_openai_client()
+                return await self._run_openai(task, context, cid)
+            raise
+
+    def _should_fallback_to_openai(self, exc: Exception) -> bool:
+        """Fallback from Anthropic to OpenAI-compatible gateway on auth/config failures."""
+        if self._mode != "anthropic":
+            return False
+        if not self._openai_available:
+            return False
+        if self.app_config.llm.is_anthropic_gateway_url():
+            return False
+
+        message = str(exc).lower()
+        auth_markers = (
+            "authentication",
+            "unauthorized",
+            "invalid api key",
+            "api key",
+            "permission",
+            "forbidden",
+            "401",
+            "403",
+            "credit balance is too low",
+        )
+        return any(marker in message for marker in auth_markers)
 
     # =========================================================================
     # ANTHROPIC NATIVE MODE

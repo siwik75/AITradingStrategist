@@ -11,16 +11,17 @@ This agent:
 This is the "brain" that makes the system adaptive — it embodies the
 concept of an agent that autonomously improves its own decision-making.
 """
-import json
-from agents.base import BaseAgent, AgentConfig
-from tools.trading_tools import (
-    run_backtest,
-    get_strategy_params,
-    save_strategy_params,
-    calculate_indicators,
-    get_trade_history,
-)
 import structlog
+
+from agents.base import AgentConfig, BaseAgent
+from agents.json_utils import parse_json_response
+from tools.trading_tools import (
+    calculate_indicators,
+    get_strategy_params,
+    get_trade_history,
+    run_backtest,
+    save_strategy_params,
+)
 
 log = structlog.get_logger()
 
@@ -132,6 +133,7 @@ class SelfAssessmentAgent(BaseAgent):
         task = f"""Perform a complete self-assessment cycle for {symbol} on {timeframe} timeframe.
 
 STEP 1: Get the current strategy parameters using get_strategy_params tool.
+  - timeframe: {timeframe}
 
 STEP 2: Run a backtest with these current parameters using run_backtest tool.
   - symbol: {symbol}
@@ -162,6 +164,7 @@ STEP 6: Run a SECOND backtest with your proposed parameters.
 
 STEP 7: Compare results. If the proposed params show improvement:
   - Use save_strategy_params to persist the new configuration
+    - timeframe: {timeframe}
   - Report the improvement metrics
 
 Provide your full assessment as the final JSON output."""
@@ -170,13 +173,24 @@ Provide your full assessment as the final JSON output."""
         
         # Try to parse as JSON
         try:
-            # Handle markdown code blocks if present
-            clean = result_str.strip()
-            if clean.startswith("```"):
-                clean = clean.split("\n", 1)[1]
-                clean = clean.rsplit("```", 1)[0]
-            return json.loads(clean)
-        except json.JSONDecodeError:
+            result = parse_json_response(result_str)
+            # Safety net: persist approved params directly in case tool call was missed
+            decision = result.get("decision", "REJECT")
+            final_params = result.get("final_params")
+            if decision in ("ADOPT", "PARTIAL") and final_params:
+                try:
+                    from memory.store import get_memory_store
+                    store = get_memory_store()
+                    await store.save_strategy_params(final_params, timeframe=timeframe)
+                    await store.save_assessment(result, correlation_id=correlation_id)
+                    log.info("agent.assessment.params_persisted",
+                        decision=decision,
+                        correlation_id=correlation_id,
+                    )
+                except Exception as persist_err:
+                    log.warning("agent.assessment.persist_failed", error=str(persist_err))
+            return result
+        except ValueError:
             log.warning("agent.assessment.json_parse_failed",
                 agent="self_assessment_agent",
                 correlation_id=correlation_id,

@@ -122,7 +122,7 @@ async def run_current_backtest(state: TradingState) -> TradingState:
     )
     
     try:
-        params = await get_strategy_params()
+        params = await get_strategy_params(timeframe=state["timeframe"])
         backtest = await run_backtest(
             symbol=state["symbol"],
             timeframe=state["timeframe"],
@@ -164,7 +164,19 @@ async def self_assess(state: TradingState) -> TradingState:
         final_params = state.get("current_params", {})
         if isinstance(assessment, dict) and not assessment.get("parse_error"):
             final_params = assessment.get("final_params", final_params)
-        
+            decision = assessment.get("decision", "REJECT")
+            if decision in ("ADOPT", "PARTIAL") and final_params:
+                try:
+                    from tools.trading_tools import save_strategy_params
+                    import json as _json
+                    await save_strategy_params(
+                        _json.dumps(final_params),
+                        timeframe=state["timeframe"],
+                    )
+                    log.info("workflow.strategy_params_persisted", decision=decision)
+                except Exception as persist_err:
+                    log.warning("workflow.persist_failed", error=str(persist_err))
+
         return {
             **state,
             "assessment": assessment,

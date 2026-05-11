@@ -9,14 +9,15 @@ Generates structured trading signals with:
 - Confidence score
 - Multi-indicator confluence analysis
 """
-import json
-from agents.base import BaseAgent, AgentConfig
+import structlog
+
+from agents.base import AgentConfig, BaseAgent
+from agents.json_utils import parse_json_response
 from tools.trading_tools import (
     calculate_indicators,
     get_ohlcv,
     get_strategy_params,
 )
-import structlog
 
 log = structlog.get_logger()
 
@@ -99,6 +100,7 @@ class SignalAgent(BaseAgent):
         task = f"""Analyze the market for {symbol} on the {timeframe} timeframe.
 
 STEP 1: Fetch current strategy parameters using get_strategy_params.
+  - timeframe: {timeframe}
 
 STEP 2: Calculate full technical indicators using calculate_indicators.
   - symbol: {symbol}
@@ -126,12 +128,8 @@ Respond ONLY with the JSON signal object."""
         result_str = await self.run(task, correlation_id=correlation_id)
         
         try:
-            clean = result_str.strip()
-            if clean.startswith("```"):
-                clean = clean.split("\n", 1)[1]
-                clean = clean.rsplit("```", 1)[0]
-            return json.loads(clean)
-        except json.JSONDecodeError:
+            return parse_json_response(result_str)
+        except ValueError:
             log.warning("agent.signal.json_parse_failed",
                 agent="signal_agent",
                 correlation_id=correlation_id,

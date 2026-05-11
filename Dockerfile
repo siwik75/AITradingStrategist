@@ -17,14 +17,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Dependencies layer (cached)
+COPY pyproject.toml .
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -e ".[production]"
 
 # Application code
 COPY . .
 
+# Persistence directory (writable via emptyDir in K8s, or local dir in Docker)
+ENV TRADING_AGENT_DATA_DIR=/tmp/trading-agent
+RUN mkdir -p /tmp/trading-agent
+
 # Ownership
-RUN chown -R agent:agent /app
+RUN chown -R agent:agent /app /tmp/trading-agent
 
 # Switch to non-root
 USER agent

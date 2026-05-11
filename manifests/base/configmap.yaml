@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trading-agent-config
+  labels:
+    app: trading-intelligence-agent
+data:
+  environment: "development"
+  log_level: "INFO"
+  llm_model: "claude-sonnet-4-20250514"
+  trading_symbols: '["BTC/USDT", "ETH/USDT"]'
+  dry_run: "true"
