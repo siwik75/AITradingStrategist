@@ -15,28 +15,48 @@ Strategy parameters persist across runs (`~/.trading-agent/strategy_params.json`
 
 ## Actual Architecture
 
-Three agents are implemented:
+```
+                  ┌─────────────────────────────────────┐
+                  │   MarketContextBuilder (per cycle)  │
+                  │   news · sentiment · F&G · liquidity│
+                  └──────────────────┬──────────────────┘
+                                     │
+   ┌─────────────┬───────────────────┼─────────────────┐
+   ▼             ▼                   ▼                 ▼
+ OHLC+VWAP    News+Sentiment    Fear & Greed     Order book
+  bands       (CryptoPanic +     (alt.me /        (ccxt L2,
+              Alpha Vantage +     CNN)             zones,
+              NewsAPI)                             slippage)
+                                     │
+                                     ▼
+              ┌────────────────────────────────────────┐
+              │  SignalAgent (Haiku 4.5)               │
+              │  + knowledge_tools                     │
+              │    ↳ recent_outcomes, kpi_summary,     │
+              │      failure_modes, query_similar      │
+              │      (RAG via Chroma + embeddings)     │
+              └────────────────────────────────────────┘
+                                     │
+                                     ▼
+              SelfAssessmentAgent (Sonnet) → StrategyAdaptiveSupervisor
+                          │
+                          ▼
+        knowledge_indexer → Chroma vector store (signal_outcomes)
+```
 
-```
-┌─────────────────────────────────────────┐
-│              BaseAgent                  │
-│   ReAct loop · dual-mode LLM · tools   │
-└───────────┬──────────────┬──────────────┘
-            │              │
-     ┌──────┴────┐  ┌──────┴──────────────┐
-     │SignalAgent│  │ SelfAssessmentAgent  │
-     │ analyze() │  │ assess_and_evolve()  │
-     └───────────┘  └──────────────────────┘
-```
+**Agents:**
+- **SignalAgent** — Haiku 4.5 by default; receives market context + lessons inline, has RAG retrieval as a tool
+- **SelfAssessmentAgent** — Sonnet 4.6; 7-step parameter evolution loop
+- **StrategyAdaptiveSupervisor** — candidate → shadow → active lifecycle with auto-rollback
 
 **Tools available to agents:**
-- `get_ohlcv` — configurable OHLCV loader with `MARKET_DATA_SOURCE=synthetic|auto|ccxt|yfinance`
-- `calculate_indicators` — 50+ indicators via the `ta` library
-- `run_backtest` — trade simulation with two-phase TP1 partial exit
-- `get_strategy_params` / `save_strategy_params` — file-backed persistence
-- `get_trade_history` — JSONL trade history for assessment context
+- Market data — `get_ohlcv`, `calculate_indicators` (50+ indicators incl. session/anchored VWAP with ±1σ/±2σ bands)
+- Backtest — `run_backtest` (two-phase TP1/TP2 partial exit)
+- Strategy state — `get_strategy_params`, `save_strategy_params`
+- Knowledge / RAG — `get_recent_outcomes`, `get_kpi_summary`, `get_failure_modes`, `query_similar_setups`
+- (Behind the scenes, called once per cycle and injected into the prompt) — news fetching, F&G, liquidity, news sentiment digest
 
-**Not yet implemented:** MarketDataAgent, StrategyAgent, BacktestAgent, RiskAgent, ExecutionAgent, MonitorAgent (planned).
+**Knowledge feedback loop:** Every evaluated prediction is embedded into a persistent Chroma store (local-first, sentence-transformers by default) and surfaced back to the SignalAgent as semantically similar past setups + their realized outcomes.
 
 ---
 
@@ -152,14 +172,18 @@ The output includes:
 ## Implemented vs Planned
 
 ### Implemented
-- CLI modes: analysis, backtest, assess, full, server
+- CLI modes: analysis, backtest, assess, full, server, signals, report, candles
 - FastAPI server with `/health`, `/ready`, `/analyze`, `/assess`
 - ReAct-loop base agent with Anthropic-native and OpenAI-compatible client support
-- 50+ technical indicators
+- Per-agent model routing (Haiku for SignalAgent, Sonnet for SelfAssessment)
+- 50+ technical indicators including session/anchored VWAP with ±1σ/±2σ bands
 - Configurable OHLCV source resolution with live-provider fallback to synthetic candles
 - Backtest engine with two-phase partial exit (TP1 + breakeven SL + TP2)
+- **External market context** — news (CryptoPanic / Alpha Vantage / NewsAPI), Fear & Greed (alternative.me, CNN), order-book liquidity zones + slippage probe (ccxt)
+- **Knowledge RAG layer** — Chroma vector store + sentence-transformers (or OpenAI embeddings); evaluated predictions auto-indexed; SignalAgent queries similar past setups during analysis
+- KPI / failure-mode aggregation feeding into SignalAgent prompts
 - Self-assessment loop with 7-step parameter evolution
-- File-based persistence for strategy params, trade history, assessments
+- File-based persistence for strategy params, trade history, assessments, predictions, evaluations
 - Kubernetes deployment via Kustomize (dev + prod overlays)
 - Graceful shutdown (SIGTERM → drain → exit)
 - Config validation with actionable error messages
@@ -168,7 +192,6 @@ The output includes:
 - Live trade execution (currently dry-run only)
 - Additional agents: Risk, Execution, Monitor
 - Redis/DynamoDB/PostgreSQL production persistence backends
-- Scheduled self-assessment in server mode
 - Multi-symbol concurrent analysis
 
 ### Current Runtime Notes

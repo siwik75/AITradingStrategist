@@ -29,6 +29,16 @@ class LLMConfig:
     model_fast: str = field(
         default_factory=lambda: os.getenv("LLM_MODEL_FAST", "claude-haiku-4-5-20251001")
     )
+    # Per-agent model assignment — cost/quality routing
+    signal_model: str = field(
+        default_factory=lambda: os.getenv("LLM_MODEL_SIGNAL", "claude-haiku-4-5-20251001")
+    )
+    assessment_model: str = field(
+        default_factory=lambda: os.getenv("LLM_MODEL_ASSESSMENT", "claude-sonnet-4-6")
+    )
+    summarizer_model: str = field(
+        default_factory=lambda: os.getenv("LLM_MODEL_SUMMARIZER", "claude-haiku-4-5-20251001")
+    )
     max_tokens: int = 4096
     temperature: float = 0.0  # deterministic for trading decisions
 
@@ -225,6 +235,119 @@ class AdaptationConfig:
 
 
 @dataclass
+class NewsConfig:
+    """News & sentiment data source configuration."""
+    enabled: bool = field(
+        default_factory=lambda: os.getenv("NEWS_ENABLED", "true").lower() == "true"
+    )
+    cryptopanic_api_key: str = field(
+        default_factory=lambda: os.getenv("CRYPTOPANIC_API_KEY", "")
+    )
+    alpha_vantage_api_key: str = field(
+        default_factory=lambda: os.getenv("ALPHA_VANTAGE_API_KEY", "")
+    )
+    newsapi_api_key: str = field(
+        default_factory=lambda: os.getenv("NEWSAPI_API_KEY", "")
+    )
+    # Lookback for headlines (hours)
+    lookback_hours: int = field(
+        default_factory=lambda: int(os.getenv("NEWS_LOOKBACK_HOURS", "24"))
+    )
+    # Max articles returned per source per call
+    max_articles_per_source: int = field(
+        default_factory=lambda: int(os.getenv("NEWS_MAX_ARTICLES", "15"))
+    )
+    # In-process cache TTL for news fetches (seconds)
+    cache_ttl_seconds: int = field(
+        default_factory=lambda: int(os.getenv("NEWS_CACHE_TTL_SECONDS", "1800"))
+    )
+    # Fear & Greed cache TTL (the index updates daily for crypto)
+    fear_greed_cache_ttl_seconds: int = field(
+        default_factory=lambda: int(os.getenv("FEAR_GREED_CACHE_TTL_SECONDS", "21600"))
+    )
+    http_timeout_seconds: float = field(
+        default_factory=lambda: float(os.getenv("NEWS_HTTP_TIMEOUT", "8.0"))
+    )
+
+    def any_news_source_configured(self) -> bool:
+        return bool(
+            self.cryptopanic_api_key
+            or self.alpha_vantage_api_key
+            or self.newsapi_api_key
+        )
+
+
+@dataclass
+class LiquidityConfig:
+    """Order book and liquidity analysis configuration."""
+    enabled: bool = field(
+        default_factory=lambda: os.getenv("LIQUIDITY_ENABLED", "true").lower() == "true"
+    )
+    # Levels of order book depth to fetch
+    depth: int = field(
+        default_factory=lambda: int(os.getenv("LIQUIDITY_DEPTH", "100"))
+    )
+    # Cluster threshold: an entry counts as a "wall" if it is N× the mean depth slot
+    wall_threshold_multiplier: float = field(
+        default_factory=lambda: float(os.getenv("LIQUIDITY_WALL_MULTIPLIER", "5.0"))
+    )
+    cache_ttl_seconds: int = field(
+        default_factory=lambda: int(os.getenv("LIQUIDITY_CACHE_TTL_SECONDS", "60"))
+    )
+
+
+@dataclass
+class EmbeddingConfig:
+    """Embedding backend selection for the RAG knowledge layer."""
+    # Provider: "sentence_transformers" (local, free) or "openai" (gateway)
+    provider: str = field(
+        default_factory=lambda: os.getenv("EMBED_PROVIDER", "sentence_transformers").lower()
+    )
+    # Local sentence-transformers model name
+    local_model: str = field(
+        default_factory=lambda: os.getenv("EMBED_LOCAL_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+    )
+    # OpenAI-compatible model name (used when provider="openai")
+    openai_model: str = field(
+        default_factory=lambda: os.getenv("EMBED_OPENAI_MODEL", "text-embedding-3-small")
+    )
+    # Dimension hint — informational, actual dim is determined by the model
+    dimension: int = field(
+        default_factory=lambda: int(os.getenv("EMBED_DIMENSION", "384"))
+    )
+
+
+@dataclass
+class VectorStoreConfig:
+    """Chroma vector store configuration for signal knowledge."""
+    enabled: bool = field(
+        default_factory=lambda: os.getenv("VECTOR_STORE_ENABLED", "true").lower() == "true"
+    )
+    # Persistence directory — defaults under TRADING_AGENT_DATA_DIR
+    persist_dir: str = field(
+        default_factory=lambda: os.getenv("VECTOR_STORE_DIR", "")
+    )
+    # Collection names
+    outcomes_collection: str = field(
+        default_factory=lambda: os.getenv("VECTOR_OUTCOMES_COLLECTION", "signal_outcomes")
+    )
+    # Default top_k for retrieval
+    default_top_k: int = field(
+        default_factory=lambda: int(os.getenv("VECTOR_DEFAULT_TOP_K", "5"))
+    )
+    # Prune records older than this (days)
+    retention_days: int = field(
+        default_factory=lambda: int(os.getenv("VECTOR_RETENTION_DAYS", "180"))
+    )
+
+    def resolved_persist_dir(self) -> str:
+        if self.persist_dir:
+            return os.path.expanduser(self.persist_dir)
+        base = os.path.expanduser(os.getenv("TRADING_AGENT_DATA_DIR", "~/.trading-agent"))
+        return os.path.join(base, "vector_store")
+
+
+@dataclass
 class TelegramConfig:
     """Telegram publishing configuration."""
     bot_token: str = field(
@@ -290,6 +413,10 @@ class AppConfig:
     scan: ScanConfig = field(default_factory=ScanConfig)
     prediction: PredictionConfig = field(default_factory=PredictionConfig)
     adaptation: AdaptationConfig = field(default_factory=AdaptationConfig)
+    news: NewsConfig = field(default_factory=NewsConfig)
+    liquidity: LiquidityConfig = field(default_factory=LiquidityConfig)
+    embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
+    vector_store: VectorStoreConfig = field(default_factory=VectorStoreConfig)
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
     infra: InfraConfig = field(default_factory=InfraConfig)
     agent_id: str = field(

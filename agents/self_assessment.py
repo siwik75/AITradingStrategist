@@ -97,9 +97,12 @@ class SelfAssessmentAgent(BaseAgent):
     7. Promote winner
     """
 
-    def __init__(self, use_openai_gateway: bool = False):
+    def __init__(self, use_openai_gateway: bool = False, model: str | None = None):
+        from config.settings import get_config
+        resolved_model = model or get_config().llm.assessment_model
         config = AgentConfig(
             name="self_assessment_agent",
+            model=resolved_model,
             temperature=0.2,  # slight creativity for strategy exploration
             system_prompt=SELF_ASSESSMENT_PROMPT,
             max_iterations=15,  # needs more iterations for multi-step analysis

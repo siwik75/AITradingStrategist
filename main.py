@@ -348,17 +348,35 @@ def create_app():
 
     @app.post("/analyze")
     async def analyze(request: Request):
-        """Trigger a market analysis."""
+        """Trigger a market analysis. Actionable BUY/SELL signals are saved to /signals."""
         body = await request.json()
         cid = request.headers.get("X-Correlation-ID", str(uuid.uuid4())[:8])
 
         from agents.signal_agent import SignalAgent
+        from tools.trading_tools import save_signal_notification
         agent = SignalAgent()
         result = await agent.analyze(
             symbol=body.get("symbol", "BTC/USDT"),
             timeframe=body.get("timeframe", "4h"),
             correlation_id=cid,
         )
+
+        signal = result.get("signal", "HOLD")
+        confidence = float(result.get("confidence", 0) or 0)
+        rr = float(result.get("risk_reward_tp2") or result.get("risk_reward_tp1") or 0)
+        cfg = get_config()
+        if (
+            signal in ("BUY", "SELL")
+            and confidence >= cfg.trading.min_confidence
+            and rr >= cfg.trading.min_risk_reward
+        ):
+            await save_signal_notification(
+                signal_json=result,
+                symbol=body.get("symbol", "BTC/USDT"),
+                timeframe=body.get("timeframe", "4h"),
+                correlation_id=cid,
+            )
+
         return result
 
     @app.post("/assess")

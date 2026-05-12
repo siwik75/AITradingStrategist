@@ -227,7 +227,24 @@ class SupervisorLoop:
         # Persist BEFORE any external call (Telegram is optional, persistence is not)
         await store.save_prediction(prediction)
 
-        # Publish actionable signals
+        # Save actionable signals to the notifications store (visible on GET /signals)
+        if (
+            signal in ("BUY", "SELL")
+            and confidence >= config.trading.min_confidence
+            and rr >= config.trading.min_risk_reward
+        ):
+            try:
+                from tools.trading_tools import save_signal_notification
+                await save_signal_notification(
+                    signal_json=result,
+                    symbol=symbol,
+                    timeframe=tf,
+                    correlation_id=cid,
+                )
+            except Exception as exc:
+                log.warning("scan.save_notification_failed", prediction_id=prediction_id, error=str(exc))
+
+        # Publish actionable signals to Telegram
         if (
             signal in ("BUY", "SELL")
             and confidence >= config.trading.min_confidence
@@ -315,6 +332,13 @@ class SupervisorLoop:
                 evaluation = await evaluate_prediction(prediction, future_candles)
                 await store.save_prediction_evaluation(pid, evaluation)
                 await store.update_prediction(pid, {"status": "evaluated"})
+
+                # Index the outcome into the RAG knowledge store (best-effort)
+                try:
+                    from workflows.knowledge_indexer import index_evaluation
+                    index_evaluation(prediction, evaluation)
+                except Exception as exc:
+                    log.warning("evaluation_loop.knowledge_index_failed", error=str(exc))
 
                 # Optionally publish evaluation to Telegram
                 if self._config.telegram.publish_evaluations:

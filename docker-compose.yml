@@ -1,0 +1,52 @@
+services:
+  trading-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trading-agent
+    restart: unless-stopped
+
+    # Pass your .env file directly — never bake secrets into the image
+    env_file:
+      - .env
+
+    environment:
+      # Fix protobuf/ChromaDB version conflict inside the container
+      PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
+      # Point model cache to the pre-baked image layer (read-only is fine)
+      SENTENCE_TRANSFORMERS_HOME: /opt/sentence_transformers_cache
+      TRANSFORMERS_CACHE: /opt/sentence_transformers_cache
+      HF_HOME: /opt/sentence_transformers_cache
+      HF_HUB_DISABLE_IMPLICIT_TOKEN: "1"
+      HUGGINGFACE_HUB_VERBOSITY: error
+
+    ports:
+      - "8082:8082"
+
+    volumes:
+      # Persist trade history, strategy params, evaluations, and the Chroma
+      # vector store across container restarts and re-builds.
+      # Data lives in a named Docker volume — inspect with:
+      #   docker volume inspect trading-agent-data
+      - trading-agent-data:/data
+
+    # The server mode starts the 4 autonomous loops:
+    #   scan → evaluate → adapt → publish (Telegram)
+    command: ["--mode", "server"]
+
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  trading-agent-data:
+    driver: local

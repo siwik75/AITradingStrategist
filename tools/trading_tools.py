@@ -498,27 +498,136 @@ async def calculate_indicators(
     if indicator_set in ("full", "volume"):
         # OBV
         df["obv"] = ta.volume.OnBalanceVolumeIndicator(df["close"], df["volume"]).on_balance_volume()
-        
-        # VWAP approx
-        df["vwap"] = (df["volume"] * (df["high"] + df["low"] + df["close"]) / 3).cumsum() / df["volume"].cumsum()
-        
+
         # Volume SMA
         df["vol_sma_20"] = df["volume"].rolling(20).mean()
-        
+
+        vwap_block = _compute_vwap_block(df)
+        df["vwap_session"] = vwap_block["_series_session"]
+        df["vwap_anchored"] = vwap_block["_series_anchored"]
+
         last = df.iloc[-1]
         results["volume"] = {
             "current_volume": round(last["volume"], 2),
             "volume_sma_20": round(last["vol_sma_20"], 2),
             "volume_ratio": round(last["volume"] / last["vol_sma_20"], 2) if last["vol_sma_20"] > 0 else 1.0,
             "obv_trend": "rising" if df["obv"].iloc[-1] > df["obv"].iloc[-5] else "falling",
-            "vwap": round(last["vwap"], 2),
-            "price_vs_vwap": "above" if last["close"] > last["vwap"] else "below",
+            "vwap": vwap_block["session"]["vwap"],
+            "price_vs_vwap": vwap_block["session"]["price_vs_vwap"],
+            "vwap_session": vwap_block["session"],
+            "vwap_anchored": vwap_block["anchored"],
         }
     
     # Support/Resistance levels
     results["levels"] = _calculate_support_resistance(df)
     
     return results
+
+
+def _compute_vwap_block(
+    df: pd.DataFrame,
+    anchor_window: int = 50,
+    band_sigma: tuple[float, float] = (1.0, 2.0),
+) -> dict:
+    """
+    Compute session-anchored and rolling-anchored VWAP with std-dev bands.
+
+    Returns a dict with two sub-blocks ('session', 'anchored') plus internal series
+    (keys prefixed with '_series_') for downstream consumers.
+
+    - 'session' VWAP: anchored at the start of the most recent UTC day (or the
+      start of the dataframe if no day boundary is present).
+    - 'anchored' VWAP: rolling window of `anchor_window` candles (default 50).
+
+    Each block includes:
+      vwap, upper_1s, lower_1s, upper_2s, lower_2s, slope_pct, price_vs_vwap,
+      band_position ('above_2s' | 'between_1s_2s_upper' | 'inside_1s' |
+                     'between_1s_2s_lower' | 'below_2s').
+    """
+    typical_price = (df["high"] + df["low"] + df["close"]) / 3.0
+    vol = df["volume"].replace(0, np.nan)
+    close = df["close"]
+
+    # ----- Session-anchored VWAP (resets each UTC day) -----
+    if isinstance(df.index, pd.DatetimeIndex):
+        session_key = df.index.tz_convert("UTC").date if df.index.tz else df.index.date
+        session_groups = pd.Series(session_key, index=df.index)
+    else:
+        # Fall back to a single session covering the full frame
+        session_groups = pd.Series(0, index=df.index)
+
+    pv = typical_price * df["volume"]
+    cum_pv_session = pv.groupby(session_groups).cumsum()
+    cum_v_session = df["volume"].groupby(session_groups).cumsum().replace(0, np.nan)
+    vwap_session = cum_pv_session / cum_v_session
+
+    # Std-dev bands within the session
+    sq_diff = (typical_price - vwap_session) ** 2 * df["volume"]
+    cum_sq_session = sq_diff.groupby(session_groups).cumsum()
+    var_session = cum_sq_session / cum_v_session
+    std_session = np.sqrt(var_session.clip(lower=0))
+
+    # ----- Rolling anchored VWAP -----
+    win = max(2, min(anchor_window, len(df)))
+    cum_pv_roll = pv.rolling(win, min_periods=2).sum()
+    cum_v_roll = df["volume"].rolling(win, min_periods=2).sum().replace(0, np.nan)
+    vwap_anchored = cum_pv_roll / cum_v_roll
+    var_anchored = (
+        ((typical_price - vwap_anchored) ** 2 * df["volume"])
+        .rolling(win, min_periods=2)
+        .sum()
+        / cum_v_roll
+    )
+    std_anchored = np.sqrt(var_anchored.clip(lower=0))
+
+    s1, s2 = band_sigma
+
+    def _summary(vwap_series: pd.Series, std_series: pd.Series, lookback: int) -> dict:
+        last_vwap = float(vwap_series.iloc[-1]) if pd.notna(vwap_series.iloc[-1]) else float(close.iloc[-1])
+        last_std = float(std_series.iloc[-1]) if pd.notna(std_series.iloc[-1]) else 0.0
+        last_close = float(close.iloc[-1])
+        # Slope: pct change of vwap over the last `lookback` candles (or len-1)
+        n = min(lookback, len(vwap_series) - 1)
+        ref = vwap_series.iloc[-n - 1] if n > 0 else vwap_series.iloc[0]
+        slope_pct = ((last_vwap - ref) / ref * 100.0) if ref and pd.notna(ref) else 0.0
+
+        upper_1 = last_vwap + s1 * last_std
+        lower_1 = last_vwap - s1 * last_std
+        upper_2 = last_vwap + s2 * last_std
+        lower_2 = last_vwap - s2 * last_std
+
+        if last_close >= upper_2:
+            band = "above_2s"
+        elif last_close >= upper_1:
+            band = "between_1s_2s_upper"
+        elif last_close <= lower_2:
+            band = "below_2s"
+        elif last_close <= lower_1:
+            band = "between_1s_2s_lower"
+        else:
+            band = "inside_1s"
+
+        return {
+            "vwap": round(last_vwap, 4),
+            "upper_1s": round(upper_1, 4),
+            "lower_1s": round(lower_1, 4),
+            "upper_2s": round(upper_2, 4),
+            "lower_2s": round(lower_2, 4),
+            "slope_pct": round(slope_pct, 4),
+            "price_vs_vwap": "above" if last_close > last_vwap else "below",
+            "band_position": band,
+            "std": round(last_std, 4),
+        }
+
+    session_summary = _summary(vwap_session, std_session, lookback=min(10, len(vwap_session) - 1))
+    anchored_summary = _summary(vwap_anchored, std_anchored, lookback=min(10, len(vwap_anchored) - 1))
+
+    return {
+        "session": session_summary,
+        "anchored": anchored_summary,
+        "_series_session": vwap_session,
+        "_series_anchored": vwap_anchored,
+    }
 
 
 def _calculate_support_resistance(df: pd.DataFrame, window: int = 20) -> dict:
