@@ -55,8 +55,14 @@ jobs:
         run: |
           docker run -d --name agent-test \
             -e ANTHROPIC_API_KEY=sk-ant-test-placeholder \
-            -p 8080:8080 \
+            -p 8082:8082 \
             trading-intelligence-agent:ci
-          sleep 8
-          curl -f http://localhost:8080/health
+          # Wait up to 60 s for /health to respond
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8082/health && break
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
+          curl -f http://localhost:8082/health
+          docker logs agent-test
           docker stop agent-test
