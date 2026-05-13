@@ -13,8 +13,8 @@ import asyncio
 import json
 import uuid
 from collections.abc import Callable
-from typing import Any
 from dataclasses import dataclass
+from typing import Any
 
 import structlog
 
