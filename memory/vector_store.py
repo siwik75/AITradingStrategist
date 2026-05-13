@@ -176,7 +176,7 @@ class ChromaVectorStore:
             raise RuntimeError("embedder returned empty vector")
         self._collection.upsert(
             ids=[rid],
-            embeddings=vec,
+            embeddings=vec,  # type: ignore[arg-type]
             documents=[document],
             metadatas=[flat_meta],
         )
@@ -196,11 +196,11 @@ class ChromaVectorStore:
         if not vec:
             return []
         result = self._collection.query(
-            query_embeddings=vec,
+            query_embeddings=vec,  # type: ignore[arg-type]
             n_results=top_k,
             where=_chroma_where(where),
         )
-        return _unpack_query_result(result)
+        return _unpack_query_result(result)  # type: ignore[arg-type]
 
     def count(self) -> int:
         try:

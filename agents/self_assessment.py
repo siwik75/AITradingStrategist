@@ -110,7 +110,9 @@ class SelfAssessmentAgent(BaseAgent):
             max_iterations=15,  # needs more iterations for multi-step analysis
             use_openai_gateway=use_openai_gateway,
         )
-        tools = [
+        from collections.abc import Callable
+
+        tools: list[Callable] = [
             run_backtest,
             get_strategy_params,
             save_strategy_params,

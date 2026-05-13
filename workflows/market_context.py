@@ -64,9 +64,10 @@ async def build_market_context(
         else _placeholder({"available": False, "reason": "disabled_or_non_crypto"})
     )
 
-    news_raw, fg, liquidity = await asyncio.gather(
-        news_task, fg_task, liq_task, return_exceptions=True
-    )
+    _results = await asyncio.gather(news_task, fg_task, liq_task, return_exceptions=True)
+    news_raw: dict | Exception = _results[0]  # type: ignore[assignment]
+    fg: dict | Exception = _results[1]  # type: ignore[assignment]
+    liquidity: dict | Exception = _results[2]  # type: ignore[assignment]
 
     if isinstance(news_raw, Exception):
         log.warning(

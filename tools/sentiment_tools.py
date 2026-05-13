@@ -297,9 +297,9 @@ async def summarize_news_sentiment(symbol: str, articles: list[dict]) -> dict:
                 system=_SUMMARIZER_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_message}],
             )
-            text = "".join(
-                block.text for block in resp.content if getattr(block, "type", "") == "text"
-            )
+            from anthropic.types import TextBlock as _TextBlock
+
+            text = "".join(block.text for block in resp.content if isinstance(block, _TextBlock))
             parsed = _safe_json(text)
             if parsed:
                 parsed["method"] = "llm_anthropic"
@@ -313,8 +313,8 @@ async def summarize_news_sentiment(symbol: str, articles: list[dict]) -> dict:
         try:
             from openai import OpenAI
 
-            client = OpenAI(api_key=cfg.gateway_api_key, base_url=cfg.gateway_url)
-            resp = client.chat.completions.create(
+            openai_client = OpenAI(api_key=cfg.gateway_api_key, base_url=cfg.gateway_url)
+            openai_resp = openai_client.chat.completions.create(
                 model=cfg.openai_model,
                 temperature=0.0,
                 max_tokens=600,
@@ -323,7 +323,7 @@ async def summarize_news_sentiment(symbol: str, articles: list[dict]) -> dict:
                     {"role": "user", "content": user_message},
                 ],
             )
-            text = resp.choices[0].message.content if resp.choices else ""
+            text = openai_resp.choices[0].message.content if openai_resp.choices else ""
             parsed = _safe_json(text or "")
             if parsed:
                 parsed["method"] = "llm_gateway"

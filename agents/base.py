@@ -13,6 +13,7 @@ import asyncio
 import json
 import uuid
 from collections.abc import Callable
+from typing import Any
 from dataclasses import dataclass
 
 import structlog
@@ -45,14 +46,14 @@ class BaseAgent:
     - Graceful timeout handling
     """
 
-    def __init__(self, config: AgentConfig, tools: list[Callable] = None):
+    def __init__(self, config: AgentConfig, tools: list[Callable] | None = None):
         self.agent_config = config
         self.app_config = get_config()
         self.tools = tools or []
         self._tool_map = {t.__name__: t for t in self.tools}
         self._anthropic_available = self.app_config.llm.has_anthropic_credentials()
         self._openai_available = self.app_config.llm.has_gateway_credentials()
-        self._tool_schemas = []
+        self._tool_schemas: list[dict] = []
 
         # Resolve provider-specific models. An explicit AgentConfig.model overrides both.
         self._anthropic_model = config.model or self.app_config.llm.model
@@ -177,7 +178,7 @@ class BaseAgent:
 
     async def _run_anthropic(self, task: str, context: dict, cid: str) -> str:
         """ReAct loop using Anthropic native API."""
-        messages = [{"role": "user", "content": task}]
+        messages: list[dict[str, Any]] = [{"role": "user", "content": task}]
 
         for iteration in range(self.agent_config.max_iterations):
             log.info(

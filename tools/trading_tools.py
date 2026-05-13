@@ -167,7 +167,7 @@ def _generate_synthetic(symbol: str, timeframe: str, limit: int) -> dict:
 
     minutes = _timeframe_to_minutes(timeframe)
 
-    base_price = {"BTC/USDT": 67500, "ETH/USDT": 3800, "AAPL": 195}.get(symbol, 100)
+    base_price: float = {"BTC/USDT": 67500, "ETH/USDT": 3800, "AAPL": 195}.get(symbol, 100)
     volatility = base_price * 0.002  # 0.2% per candle
 
     timestamps = [_utc_now() - timedelta(minutes=minutes * (limit - i)) for i in range(limit)]
@@ -708,7 +708,7 @@ async def run_backtest(
     # Simulate trades with two-phase partial exit:
     #   Phase 1 (full position): SL = full loss | TP1 = 50% exit + move SL to breakeven
     #   Phase 2 (50% remaining): SL = breakeven | TP2 = 50% exit
-    trades = []
+    trades: list[dict] = []
     in_position = False
 
     for i in range(1, len(df)):
@@ -911,7 +911,7 @@ async def run_backtest(
     drawdown = cumulative - running_max
 
     # Exit distribution
-    exit_dist = {}
+    exit_dist: dict[str, int] = {}
     for t in completed:
         reason = t["exit_reason"]
         exit_dist[reason] = exit_dist.get(reason, 0) + 1
@@ -1037,7 +1037,7 @@ async def get_trade_history(days: int = 30) -> dict:
 
 
 async def save_signal_notification(
-    signal_json: str,
+    signal_json: str | dict,
     symbol: str,
     timeframe: str = "4h",
     correlation_id: str = "",

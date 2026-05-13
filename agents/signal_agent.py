@@ -126,7 +126,9 @@ class SignalAgent(BaseAgent):
             max_iterations=10,
             use_openai_gateway=use_openai_gateway,
         )
-        tools = [
+        from collections.abc import Callable
+
+        tools: list[Callable] = [
             # Technical / market data
             calculate_indicators,
             get_ohlcv,

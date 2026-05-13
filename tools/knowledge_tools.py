@@ -147,7 +147,7 @@ async def get_kpi_summary(
         "mid_60_79": {"n": 0, "correct": 0},
         "high_80_plus": {"n": 0, "correct": 0},
     }
-    regime_stats: dict[str, dict[str, int]] = {}
+    regime_stats: dict[str, dict[str, float]] = {}
     signal_stats: dict[str, dict[str, int]] = {}
 
     for pred, ev in filtered:

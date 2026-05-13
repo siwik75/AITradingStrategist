@@ -47,7 +47,7 @@ def build_tool_schema(fn) -> dict:
         if origin is not None:
             args = getattr(py_type, "__args__", ())
             if type(None) in args:
-                py_type = args[0]
+                py_type = next(a for a in args if a is not type(None))
 
         json_type = TYPE_MAP.get(py_type, "string")
 
