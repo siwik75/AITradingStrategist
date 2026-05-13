@@ -73,10 +73,12 @@ SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')" \
 # Switch to non-root
 USER agent
 
-# Redirect HuggingFace / sentence-transformers model cache to the writable volume.
-# The non-root agent user cannot write to /app/.cache (owned by root during build).
+# Keep SENTENCE_TRANSFORMERS_HOME pointing at the baked-in model cache so the
+# agent reads from the image layer — no network call needed at runtime.
+# HF_HOME/TRANSFORMERS_CACHE still point to the volume so any other HF downloads
+# (rare) land somewhere writable by the non-root user.
+ENV SENTENCE_TRANSFORMERS_HOME=/opt/sentence_transformers_cache
 ENV HF_HOME=/data/.cache/huggingface
-ENV SENTENCE_TRANSFORMERS_HOME=/data/.cache/sentence_transformers
 ENV TRANSFORMERS_CACHE=/data/.cache/huggingface
 # Suppress the unauthenticated HF Hub warning — we only use public models
 ENV HF_HUB_DISABLE_IMPLICIT_TOKEN=1
