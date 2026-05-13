@@ -3,6 +3,7 @@ Configuration module — 16-Factor App Principle: Config esterna e centralizzata
 Reads from environment variables, ConfigMaps, or Vault.
 Never hardcode credentials or endpoints.
 """
+
 import json
 import os
 from dataclasses import dataclass, field
@@ -11,21 +12,14 @@ from dataclasses import dataclass, field
 @dataclass
 class LLMConfig:
     """LLM Gateway configuration (GHO-compatible, OpenAI standard)."""
-    anthropic_api_key: str = field(
-        default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", "")
-    )
-    gateway_api_key: str = field(
-        default_factory=lambda: os.getenv("LLM_API_KEY", "")
-    )
+
+    anthropic_api_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
+    gateway_api_key: str = field(default_factory=lambda: os.getenv("LLM_API_KEY", ""))
     gateway_url: str = field(
         default_factory=lambda: os.getenv("LLM_GATEWAY_URL", "https://api.anthropic.com")
     )
-    model: str = field(
-        default_factory=lambda: os.getenv("LLM_MODEL", "claude-sonnet-4-20250514")
-    )
-    openai_model: str = field(
-        default_factory=lambda: os.getenv("OPENAI_LLM_MODEL", "gpt-5-mini")
-    )
+    model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "claude-sonnet-4-20250514"))
+    openai_model: str = field(default_factory=lambda: os.getenv("OPENAI_LLM_MODEL", "gpt-5-mini"))
     model_fast: str = field(
         default_factory=lambda: os.getenv("LLM_MODEL_FAST", "claude-haiku-4-5-20251001")
     )
@@ -64,43 +58,34 @@ class LLMConfig:
 @dataclass
 class TradingConfig:
     """Trading parameters — externalized for per-environment tuning."""
+
     symbols: list[str] = field(
-        default_factory=lambda: json.loads(
-            os.getenv("TRADING_SYMBOLS", '["BTC/USDT", "ETH/USDT"]')
-        )
+        default_factory=lambda: json.loads(os.getenv("TRADING_SYMBOLS", '["BTC/USDT", "ETH/USDT"]'))
     )
     timeframes: list[str] = field(
-        default_factory=lambda: json.loads(
-            os.getenv("TRADING_TIMEFRAMES", '["1h", "4h", "1d"]')
-        )
+        default_factory=lambda: json.loads(os.getenv("TRADING_TIMEFRAMES", '["1h", "4h", "1d"]'))
     )
-    max_risk_pct: float = field(
-        default_factory=lambda: float(os.getenv("MAX_RISK_PCT", "1.0"))
-    )
+    max_risk_pct: float = field(default_factory=lambda: float(os.getenv("MAX_RISK_PCT", "1.0")))
     max_position_pct: float = field(
         default_factory=lambda: float(os.getenv("MAX_POSITION_PCT", "5.0"))
     )
-    min_confidence: int = field(
-        default_factory=lambda: int(os.getenv("MIN_CONFIDENCE", "70"))
-    )
+    min_confidence: int = field(default_factory=lambda: int(os.getenv("MIN_CONFIDENCE", "70")))
     min_risk_reward: float = field(
         default_factory=lambda: float(os.getenv("MIN_RISK_REWARD", "2.0"))
     )
-    dry_run: bool = field(
-        default_factory=lambda: os.getenv("DRY_RUN", "true").lower() == "true"
-    )
+    dry_run: bool = field(default_factory=lambda: os.getenv("DRY_RUN", "true").lower() == "true")
 
 
 @dataclass
 class MarketDataConfig:
     """Market data source selection and provider-specific settings."""
+
     source: str = field(
         default_factory=lambda: os.getenv("MARKET_DATA_SOURCE", "synthetic").lower()
     )
     fallback_to_synthetic: bool = field(
-        default_factory=lambda: os.getenv(
-            "MARKET_DATA_FALLBACK_TO_SYNTHETIC", "true"
-        ).lower() == "true"
+        default_factory=lambda: os.getenv("MARKET_DATA_FALLBACK_TO_SYNTHETIC", "true").lower()
+        == "true"
     )
     ccxt_exchange: str = field(
         default_factory=lambda: os.getenv("CCXT_EXCHANGE", "binance").lower()
@@ -110,6 +95,7 @@ class MarketDataConfig:
 @dataclass
 class BacktestConfig:
     """Backtesting and self-assessment parameters."""
+
     lookback_days: int = field(
         default_factory=lambda: int(os.getenv("BACKTEST_LOOKBACK_DAYS", "30"))
     )
@@ -130,24 +116,13 @@ class BacktestConfig:
 @dataclass
 class ScanConfig:
     """Per-timeframe scan cadence (seconds between scans)."""
-    interval_5m: int = field(
-        default_factory=lambda: int(os.getenv("SCAN_INTERVAL_5M", "300"))
-    )
-    interval_15m: int = field(
-        default_factory=lambda: int(os.getenv("SCAN_INTERVAL_15M", "900"))
-    )
-    interval_30m: int = field(
-        default_factory=lambda: int(os.getenv("SCAN_INTERVAL_30M", "1800"))
-    )
-    interval_1h: int = field(
-        default_factory=lambda: int(os.getenv("SCAN_INTERVAL_1H", "3600"))
-    )
-    interval_4h: int = field(
-        default_factory=lambda: int(os.getenv("SCAN_INTERVAL_4H", "14400"))
-    )
-    interval_1d: int = field(
-        default_factory=lambda: int(os.getenv("SCAN_INTERVAL_1D", "86400"))
-    )
+
+    interval_5m: int = field(default_factory=lambda: int(os.getenv("SCAN_INTERVAL_5M", "300")))
+    interval_15m: int = field(default_factory=lambda: int(os.getenv("SCAN_INTERVAL_15M", "900")))
+    interval_30m: int = field(default_factory=lambda: int(os.getenv("SCAN_INTERVAL_30M", "1800")))
+    interval_1h: int = field(default_factory=lambda: int(os.getenv("SCAN_INTERVAL_1H", "3600")))
+    interval_4h: int = field(default_factory=lambda: int(os.getenv("SCAN_INTERVAL_4H", "14400")))
+    interval_1d: int = field(default_factory=lambda: int(os.getenv("SCAN_INTERVAL_1D", "86400")))
 
     def for_timeframe(self, tf: str) -> int:
         mapping = {
@@ -164,6 +139,7 @@ class ScanConfig:
 @dataclass
 class PredictionConfig:
     """Prediction lifecycle and evaluation horizon config."""
+
     eval_horizon_5m: int = field(
         default_factory=lambda: int(os.getenv("PREDICTION_EVAL_HORIZON_5M", "6"))
     )
@@ -205,6 +181,7 @@ class PredictionConfig:
 @dataclass
 class AdaptationConfig:
     """Strategy adaptation and mutation controls."""
+
     enabled: bool = field(
         default_factory=lambda: os.getenv("ENABLE_AUTONOMOUS_ADAPTATION", "false").lower() == "true"
     )
@@ -215,9 +192,8 @@ class AdaptationConfig:
         default_factory=lambda: int(os.getenv("MAX_PARAMETER_MUTATIONS_PER_CYCLE", "2"))
     )
     rollback_on_short_window_degradation: bool = field(
-        default_factory=lambda: os.getenv(
-            "ROLLBACK_ON_SHORT_WINDOW_DEGRADATION", "true"
-        ).lower() == "true"
+        default_factory=lambda: os.getenv("ROLLBACK_ON_SHORT_WINDOW_DEGRADATION", "true").lower()
+        == "true"
     )
     # KPI thresholds that trigger adaptation
     min_directional_accuracy: float = field(
@@ -237,22 +213,17 @@ class AdaptationConfig:
 @dataclass
 class NewsConfig:
     """News & sentiment data source configuration."""
+
     enabled: bool = field(
         default_factory=lambda: os.getenv("NEWS_ENABLED", "true").lower() == "true"
     )
-    cryptopanic_api_key: str = field(
-        default_factory=lambda: os.getenv("CRYPTOPANIC_API_KEY", "")
-    )
+    cryptopanic_api_key: str = field(default_factory=lambda: os.getenv("CRYPTOPANIC_API_KEY", ""))
     alpha_vantage_api_key: str = field(
         default_factory=lambda: os.getenv("ALPHA_VANTAGE_API_KEY", "")
     )
-    newsapi_api_key: str = field(
-        default_factory=lambda: os.getenv("NEWSAPI_API_KEY", "")
-    )
+    newsapi_api_key: str = field(default_factory=lambda: os.getenv("NEWSAPI_API_KEY", ""))
     # Lookback for headlines (hours)
-    lookback_hours: int = field(
-        default_factory=lambda: int(os.getenv("NEWS_LOOKBACK_HOURS", "24"))
-    )
+    lookback_hours: int = field(default_factory=lambda: int(os.getenv("NEWS_LOOKBACK_HOURS", "24")))
     # Max articles returned per source per call
     max_articles_per_source: int = field(
         default_factory=lambda: int(os.getenv("NEWS_MAX_ARTICLES", "15"))
@@ -270,23 +241,18 @@ class NewsConfig:
     )
 
     def any_news_source_configured(self) -> bool:
-        return bool(
-            self.cryptopanic_api_key
-            or self.alpha_vantage_api_key
-            or self.newsapi_api_key
-        )
+        return bool(self.cryptopanic_api_key or self.alpha_vantage_api_key or self.newsapi_api_key)
 
 
 @dataclass
 class LiquidityConfig:
     """Order book and liquidity analysis configuration."""
+
     enabled: bool = field(
         default_factory=lambda: os.getenv("LIQUIDITY_ENABLED", "true").lower() == "true"
     )
     # Levels of order book depth to fetch
-    depth: int = field(
-        default_factory=lambda: int(os.getenv("LIQUIDITY_DEPTH", "100"))
-    )
+    depth: int = field(default_factory=lambda: int(os.getenv("LIQUIDITY_DEPTH", "100")))
     # Cluster threshold: an entry counts as a "wall" if it is N× the mean depth slot
     wall_threshold_multiplier: float = field(
         default_factory=lambda: float(os.getenv("LIQUIDITY_WALL_MULTIPLIER", "5.0"))
@@ -299,42 +265,40 @@ class LiquidityConfig:
 @dataclass
 class EmbeddingConfig:
     """Embedding backend selection for the RAG knowledge layer."""
+
     # Provider: "sentence_transformers" (local, free) or "openai" (gateway)
     provider: str = field(
         default_factory=lambda: os.getenv("EMBED_PROVIDER", "sentence_transformers").lower()
     )
     # Local sentence-transformers model name
     local_model: str = field(
-        default_factory=lambda: os.getenv("EMBED_LOCAL_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+        default_factory=lambda: os.getenv(
+            "EMBED_LOCAL_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
+        )
     )
     # OpenAI-compatible model name (used when provider="openai")
     openai_model: str = field(
         default_factory=lambda: os.getenv("EMBED_OPENAI_MODEL", "text-embedding-3-small")
     )
     # Dimension hint — informational, actual dim is determined by the model
-    dimension: int = field(
-        default_factory=lambda: int(os.getenv("EMBED_DIMENSION", "384"))
-    )
+    dimension: int = field(default_factory=lambda: int(os.getenv("EMBED_DIMENSION", "384")))
 
 
 @dataclass
 class VectorStoreConfig:
     """Chroma vector store configuration for signal knowledge."""
+
     enabled: bool = field(
         default_factory=lambda: os.getenv("VECTOR_STORE_ENABLED", "true").lower() == "true"
     )
     # Persistence directory — defaults under TRADING_AGENT_DATA_DIR
-    persist_dir: str = field(
-        default_factory=lambda: os.getenv("VECTOR_STORE_DIR", "")
-    )
+    persist_dir: str = field(default_factory=lambda: os.getenv("VECTOR_STORE_DIR", ""))
     # Collection names
     outcomes_collection: str = field(
         default_factory=lambda: os.getenv("VECTOR_OUTCOMES_COLLECTION", "signal_outcomes")
     )
     # Default top_k for retrieval
-    default_top_k: int = field(
-        default_factory=lambda: int(os.getenv("VECTOR_DEFAULT_TOP_K", "5"))
-    )
+    default_top_k: int = field(default_factory=lambda: int(os.getenv("VECTOR_DEFAULT_TOP_K", "5")))
     # Prune records older than this (days)
     retention_days: int = field(
         default_factory=lambda: int(os.getenv("VECTOR_RETENTION_DAYS", "180"))
@@ -350,15 +314,10 @@ class VectorStoreConfig:
 @dataclass
 class TelegramConfig:
     """Telegram publishing configuration."""
-    bot_token: str = field(
-        default_factory=lambda: os.getenv("TELEGRAM_BOT_TOKEN", "")
-    )
-    channel_id: str = field(
-        default_factory=lambda: os.getenv("TELEGRAM_CHANNEL_ID", "")
-    )
-    thread_id: str = field(
-        default_factory=lambda: os.getenv("TELEGRAM_THREAD_ID", "")
-    )
+
+    bot_token: str = field(default_factory=lambda: os.getenv("TELEGRAM_BOT_TOKEN", ""))
+    channel_id: str = field(default_factory=lambda: os.getenv("TELEGRAM_CHANNEL_ID", ""))
+    thread_id: str = field(default_factory=lambda: os.getenv("TELEGRAM_THREAD_ID", ""))
     publish_signals: bool = field(
         default_factory=lambda: os.getenv("TELEGRAM_PUBLISH_SIGNALS", "true").lower() == "true"
     )
@@ -366,14 +325,12 @@ class TelegramConfig:
         default_factory=lambda: os.getenv("TELEGRAM_PUBLISH_EVALUATIONS", "false").lower() == "true"
     )
     publish_strategy_changes: bool = field(
-        default_factory=lambda: os.getenv(
-            "TELEGRAM_PUBLISH_STRATEGY_CHANGES", "true"
-        ).lower() == "true"
+        default_factory=lambda: os.getenv("TELEGRAM_PUBLISH_STRATEGY_CHANGES", "true").lower()
+        == "true"
     )
     publish_degradation_alerts: bool = field(
-        default_factory=lambda: os.getenv(
-            "TELEGRAM_PUBLISH_DEGRADATION_ALERTS", "true"
-        ).lower() == "true"
+        default_factory=lambda: os.getenv("TELEGRAM_PUBLISH_DEGRADATION_ALERTS", "true").lower()
+        == "true"
     )
 
     def is_configured(self) -> bool:
@@ -383,22 +340,15 @@ class TelegramConfig:
 @dataclass
 class InfraConfig:
     """Infrastructure and runtime configuration."""
-    port: int = field(
-        default_factory=lambda: int(os.getenv("PORT", "8080"))
-    )
-    log_level: str = field(
-        default_factory=lambda: os.getenv("LOG_LEVEL", "INFO")
-    )
+
+    port: int = field(default_factory=lambda: int(os.getenv("PORT", "8080")))
+    log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
     log_format: str = "json"  # always structured
-    redis_url: str = field(
-        default_factory=lambda: os.getenv("REDIS_URL", "redis://localhost:6379")
-    )
+    redis_url: str = field(default_factory=lambda: os.getenv("REDIS_URL", "redis://localhost:6379"))
     s3_bucket: str = field(
         default_factory=lambda: os.getenv("S3_CONVERSATION_BUCKET", "advisor-conversations")
     )
-    db_url: str = field(
-        default_factory=lambda: os.getenv("DATABASE_URL", "")
-    )
+    db_url: str = field(default_factory=lambda: os.getenv("DATABASE_URL", ""))
     correlation_id_header: str = "X-Correlation-ID"
     graceful_shutdown_timeout: int = 30
 
@@ -406,6 +356,7 @@ class InfraConfig:
 @dataclass
 class AppConfig:
     """Root configuration — aggregates all sub-configs."""
+
     llm: LLMConfig = field(default_factory=LLMConfig)
     trading: TradingConfig = field(default_factory=TradingConfig)
     market_data: MarketDataConfig = field(default_factory=MarketDataConfig)
@@ -422,9 +373,7 @@ class AppConfig:
     agent_id: str = field(
         default_factory=lambda: os.getenv("AGENT_ID", "trading-intelligence-agent")
     )
-    environment: str = field(
-        default_factory=lambda: os.getenv("ENVIRONMENT", "development")
-    )
+    environment: str = field(default_factory=lambda: os.getenv("ENVIRONMENT", "development"))
 
     def is_production(self) -> bool:
         return self.environment == "production"
@@ -460,9 +409,7 @@ class AppConfig:
             )
 
         if errors:
-            msg = "Configuration validation failed:\n" + "\n".join(
-                f"  - {e}" for e in errors
-            )
+            msg = "Configuration validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
             raise ValueError(msg)
 
 

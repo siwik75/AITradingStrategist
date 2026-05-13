@@ -11,6 +11,7 @@ The SignalAgent receives these as both:
   - A pre-computed `lessons` block injected into the task prompt
   - Optional tools it can call mid-analysis for deeper drill-down
 """
+
 from __future__ import annotations
 
 from collections import Counter
@@ -30,6 +31,7 @@ log = structlog.get_logger()
 # MEMORY STORE ACCESS
 # =============================================================================
 
+
 def _store() -> MemoryStore:
     cfg = get_config()
     return MemoryStore(agent_id=cfg.agent_id)
@@ -38,6 +40,7 @@ def _store() -> MemoryStore:
 # =============================================================================
 # TEMPORAL — get_recent_outcomes
 # =============================================================================
+
 
 async def get_recent_outcomes(
     symbol: str | None = None,
@@ -58,11 +61,7 @@ async def get_recent_outcomes(
         return {"count": 0, "outcomes": []}
 
     predictions = await store.get_predictions(limit=0, status="all")
-    pred_by_id = {
-        p.get("prediction_id"): p
-        for p in predictions
-        if p.get("prediction_id")
-    }
+    pred_by_id = {p.get("prediction_id"): p for p in predictions if p.get("prediction_id")}
 
     outcomes: list[dict] = []
     for ev in reversed(evaluations):  # newest first
@@ -100,6 +99,7 @@ async def get_recent_outcomes(
 # =============================================================================
 # AGGREGATE — get_kpi_summary
 # =============================================================================
+
 
 async def get_kpi_summary(
     symbol: str | None = None,
@@ -221,6 +221,7 @@ async def get_kpi_summary(
 # AGGREGATE — get_failure_modes
 # =============================================================================
 
+
 async def get_failure_modes(
     symbol: str | None = None,
     timeframe: str | None = None,
@@ -294,6 +295,7 @@ async def get_failure_modes(
 # SEMANTIC — query_similar_setups (RAG)
 # =============================================================================
 
+
 async def query_similar_setups(
     query_text: str,
     symbol: str | None = None,
@@ -358,6 +360,7 @@ async def query_similar_setups(
 # LESSON CARD — pre-computed prompt block
 # =============================================================================
 
+
 async def build_lesson_card(
     symbol: str,
     timeframe: str,
@@ -419,7 +422,9 @@ def format_lesson_card_text(card: dict) -> str:
     if rt:
         lines.append("- Top losing regime/trend combos: " + ", ".join(f"{k}({n})" for k, n in rt))
     if inds:
-        lines.append("- Indicators most present in losses: " + ", ".join(f"{k}({n})" for k, n in inds))
+        lines.append(
+            "- Indicators most present in losses: " + ", ".join(f"{k}({n})" for k, n in inds)
+        )
     overconf = failures.get("overconfident_losses") or []
     if overconf:
         lines.append(f"- Beware: {len(overconf)} high-confidence (>=80) losses recorded recently")

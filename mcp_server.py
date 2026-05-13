@@ -41,6 +41,7 @@ Claude Code (project-level .claude/settings.json):
     }
   }
 """
+
 from __future__ import annotations
 
 import argparse
@@ -74,6 +75,7 @@ mcp = FastMCP(
 # HELPER
 # =============================================================================
 
+
 def _json(obj) -> str:
     return json.dumps(obj, default=str, indent=2)
 
@@ -81,6 +83,7 @@ def _json(obj) -> str:
 # =============================================================================
 # 1. SIGNAL GENERATION
 # =============================================================================
+
 
 @mcp.tool()
 async def analyze_signal(
@@ -104,6 +107,7 @@ async def analyze_signal(
     import uuid
 
     from agents.signal_agent import SignalAgent
+
     agent = SignalAgent()
     result = await agent.analyze(
         symbol=symbol,
@@ -116,6 +120,7 @@ async def analyze_signal(
 # =============================================================================
 # 2. MARKET CONTEXT (news + sentiment + F&G + liquidity) — no LLM cost
 # =============================================================================
+
 
 @mcp.tool()
 async def get_market_context(
@@ -135,6 +140,7 @@ async def get_market_context(
     :param timeframe: Used for metadata only; does not affect the fetches
     """
     from workflows.market_context import build_market_context
+
     ctx = await build_market_context(symbol=symbol, timeframe=timeframe)
     # Strip internal _series fields that are not JSON serialisable
     ctx.pop("_raw", None)
@@ -144,6 +150,7 @@ async def get_market_context(
 # =============================================================================
 # 3. FEAR & GREED INDEX
 # =============================================================================
+
 
 @mcp.tool()
 async def get_fear_greed(
@@ -158,6 +165,7 @@ async def get_fear_greed(
     :param asset_class: "crypto" (default) or "stocks"
     """
     from tools.sentiment_tools import get_fear_greed as _fg
+
     result = await _fg(asset_class=asset_class)
     return _json(result)
 
@@ -165,6 +173,7 @@ async def get_fear_greed(
 # =============================================================================
 # 4. NEWS
 # =============================================================================
+
 
 @mcp.tool()
 async def get_news(
@@ -182,11 +191,13 @@ async def get_news(
     import os
 
     from config.settings import reset_config
+
     # Temporarily override the lookback setting
     original = os.environ.get("NEWS_LOOKBACK_HOURS")
     os.environ["NEWS_LOOKBACK_HOURS"] = str(hours)
     reset_config()
     from tools.news_tools import _clear_cache, fetch_news
+
     _clear_cache()
     result = await fetch_news(symbol)
     # Restore
@@ -213,6 +224,7 @@ async def summarize_news(
     """
     from tools.news_tools import fetch_news
     from tools.sentiment_tools import summarize_news_sentiment
+
     news = await fetch_news(symbol)
     articles = news.get("articles", [])
     if not articles:
@@ -225,6 +237,7 @@ async def summarize_news(
 # =============================================================================
 # 5. TECHNICAL INDICATORS
 # =============================================================================
+
 
 @mcp.tool()
 async def get_indicators(
@@ -246,6 +259,7 @@ async def get_indicators(
     :param indicator_set: "full" | "trend" | "momentum" | "volatility" | "volume"
     """
     from tools.trading_tools import calculate_indicators
+
     result = await calculate_indicators(
         symbol=symbol,
         timeframe=timeframe,
@@ -257,6 +271,7 @@ async def get_indicators(
 # =============================================================================
 # 6. OHLCV CANDLES
 # =============================================================================
+
 
 @mcp.tool()
 async def get_candles(
@@ -275,6 +290,7 @@ async def get_candles(
     :param limit: Number of candles to return (max 500)
     """
     from tools.trading_tools import get_ohlcv
+
     result = await get_ohlcv(symbol=symbol, timeframe=timeframe, limit=limit)
     return _json(result)
 
@@ -282,6 +298,7 @@ async def get_candles(
 # =============================================================================
 # 7. LIQUIDITY & ORDER BOOK
 # =============================================================================
+
 
 @mcp.tool()
 async def get_liquidity(
@@ -296,6 +313,7 @@ async def get_liquidity(
     :param symbol: Trading pair on the configured exchange e.g. BTC/USDT
     """
     from tools.liquidity_tools import get_liquidity_snapshot
+
     result = await get_liquidity_snapshot(symbol=symbol)
     return _json(result)
 
@@ -303,6 +321,7 @@ async def get_liquidity(
 # =============================================================================
 # 8. BACKTEST
 # =============================================================================
+
 
 @mcp.tool()
 async def run_backtest(
@@ -324,6 +343,7 @@ async def run_backtest(
     """
     from tools.trading_tools import get_ohlcv, get_strategy_params
     from tools.trading_tools import run_backtest as _backtest
+
     await get_ohlcv(symbol=symbol, timeframe=timeframe, limit=days * 24)
     params = await get_strategy_params(timeframe=timeframe)
     result = await _backtest(
@@ -339,6 +359,7 @@ async def run_backtest(
 # 9. STRATEGY PARAMETERS
 # =============================================================================
 
+
 @mcp.tool()
 async def get_strategy_params(
     timeframe: str | None = None,
@@ -352,6 +373,7 @@ async def get_strategy_params(
     :param timeframe: Filter by timeframe (e.g. "1h"). None returns all.
     """
     from tools.trading_tools import get_strategy_params as _gsp
+
     result = await _gsp(timeframe=timeframe)
     if result is None:
         return _json({"available": False, "reason": "no_params_saved_yet"})
@@ -361,6 +383,7 @@ async def get_strategy_params(
 # =============================================================================
 # 10. PENDING SIGNALS
 # =============================================================================
+
 
 @mcp.tool()
 async def get_signals(
@@ -375,6 +398,7 @@ async def get_signals(
     :param days: How many days back to look (default 7)
     """
     from tools.trading_tools import get_signal_notifications
+
     result = await get_signal_notifications(status=status, days=days)
     return _json(result)
 
@@ -382,6 +406,7 @@ async def get_signals(
 # =============================================================================
 # 11. REPORT TRADE OUTCOME
 # =============================================================================
+
 
 @mcp.tool()
 async def report_trade(
@@ -405,6 +430,7 @@ async def report_trade(
     :param notes: Optional free-text notes
     """
     from tools.trading_tools import report_manual_trade_outcome
+
     outcome = await report_manual_trade_outcome(
         signal_id=signal_id,
         result=result,
@@ -419,6 +445,7 @@ async def report_trade(
 # =============================================================================
 # 12. PERFORMANCE KPIs
 # =============================================================================
+
 
 @mcp.tool()
 async def get_kpi_summary(
@@ -436,6 +463,7 @@ async def get_kpi_summary(
     :param window: Number of recent evaluations to include (default 50)
     """
     from tools.knowledge_tools import get_kpi_summary as _kpis
+
     result = await _kpis(symbol=symbol, timeframe=timeframe, window=window)
     return _json(result)
 
@@ -456,6 +484,7 @@ async def get_recent_outcomes(
     :param limit: Max records to return (default 20)
     """
     from tools.knowledge_tools import get_recent_outcomes as _ro
+
     result = await _ro(symbol=symbol, timeframe=timeframe, limit=limit)
     return _json(result)
 
@@ -476,6 +505,7 @@ async def get_failure_modes(
     :param window: Lookback window in number of evaluated trades (default 100)
     """
     from tools.knowledge_tools import get_failure_modes as _fm
+
     result = await _fm(symbol=symbol, timeframe=timeframe, window=window)
     return _json(result)
 
@@ -483,6 +513,7 @@ async def get_failure_modes(
 # =============================================================================
 # 13. SIMILAR PAST SETUPS (RAG)
 # =============================================================================
+
 
 @mcp.tool()
 async def query_similar_setups(
@@ -510,6 +541,7 @@ async def query_similar_setups(
     :param top_k: Number of similar setups to retrieve (default 5)
     """
     from tools.knowledge_tools import query_similar_setups as _qs
+
     result = await _qs(
         query_text=setup_description,
         symbol=symbol,
@@ -522,6 +554,7 @@ async def query_similar_setups(
 # =============================================================================
 # 14. SELF-ASSESSMENT (trigger manual evolution cycle)
 # =============================================================================
+
 
 @mcp.tool()
 async def run_self_assessment(
@@ -542,6 +575,7 @@ async def run_self_assessment(
     import uuid
 
     from agents.self_assessment import SelfAssessmentAgent
+
     agent = SelfAssessmentAgent()
     result = await agent.assess_and_evolve(
         symbol=symbol,
@@ -554,6 +588,7 @@ async def run_self_assessment(
 # =============================================================================
 # 15. PLATFORM STATUS
 # =============================================================================
+
 
 @mcp.tool()
 async def get_platform_status() -> str:
@@ -569,47 +604,49 @@ async def get_platform_status() -> str:
     cfg = get_config()
     vs = get_vector_store()
 
-    return _json({
-        "trading": {
-            "symbols": cfg.trading.symbols,
-            "timeframes": cfg.trading.timeframes,
-            "min_confidence": cfg.trading.min_confidence,
-            "min_risk_reward": cfg.trading.min_risk_reward,
-            "dry_run": cfg.trading.dry_run,
-        },
-        "llm": {
-            "provider": "anthropic" if cfg.llm.has_anthropic_credentials() else "gateway",
-            "signal_model": cfg.llm.signal_model,
-            "assessment_model": cfg.llm.assessment_model,
-            "summarizer_model": cfg.llm.summarizer_model,
-        },
-        "market_data": {
-            "source": cfg.market_data.source,
-            "exchange": cfg.market_data.ccxt_exchange,
-            "fallback_to_synthetic": cfg.market_data.fallback_to_synthetic,
-        },
-        "news": {
-            "enabled": cfg.news.enabled,
-            "cryptopanic": bool(cfg.news.cryptopanic_api_key),
-            "alpha_vantage": bool(cfg.news.alpha_vantage_api_key),
-            "newsapi": bool(cfg.news.newsapi_api_key),
-        },
-        "rag": {
-            "enabled": cfg.vector_store.enabled,
-            "available": getattr(vs, "available", False),
-            "record_count": vs.count() if getattr(vs, "available", False) else 0,
-            "persist_dir": cfg.vector_store.resolved_persist_dir(),
-            "embedder": cfg.embedding.provider,
-        },
-        "telegram": {
-            "configured": cfg.telegram.is_configured(),
-            "publish_signals": cfg.telegram.publish_signals,
-        },
-        "adaptation": {
-            "enabled": cfg.adaptation.enabled,
-            "interval_hours": cfg.adaptation.interval_hours,
-        },
-    })
+    return _json(
+        {
+            "trading": {
+                "symbols": cfg.trading.symbols,
+                "timeframes": cfg.trading.timeframes,
+                "min_confidence": cfg.trading.min_confidence,
+                "min_risk_reward": cfg.trading.min_risk_reward,
+                "dry_run": cfg.trading.dry_run,
+            },
+            "llm": {
+                "provider": "anthropic" if cfg.llm.has_anthropic_credentials() else "gateway",
+                "signal_model": cfg.llm.signal_model,
+                "assessment_model": cfg.llm.assessment_model,
+                "summarizer_model": cfg.llm.summarizer_model,
+            },
+            "market_data": {
+                "source": cfg.market_data.source,
+                "exchange": cfg.market_data.ccxt_exchange,
+                "fallback_to_synthetic": cfg.market_data.fallback_to_synthetic,
+            },
+            "news": {
+                "enabled": cfg.news.enabled,
+                "cryptopanic": bool(cfg.news.cryptopanic_api_key),
+                "alpha_vantage": bool(cfg.news.alpha_vantage_api_key),
+                "newsapi": bool(cfg.news.newsapi_api_key),
+            },
+            "rag": {
+                "enabled": cfg.vector_store.enabled,
+                "available": getattr(vs, "available", False),
+                "record_count": vs.count() if getattr(vs, "available", False) else 0,
+                "persist_dir": cfg.vector_store.resolved_persist_dir(),
+                "embedder": cfg.embedding.provider,
+            },
+            "telegram": {
+                "configured": cfg.telegram.is_configured(),
+                "publish_signals": cfg.telegram.publish_signals,
+            },
+            "adaptation": {
+                "enabled": cfg.adaptation.enabled,
+                "interval_hours": cfg.adaptation.interval_hours,
+            },
+        }
+    )
 
 
 # =============================================================================

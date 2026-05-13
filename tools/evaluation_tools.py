@@ -15,6 +15,7 @@ Evaluation model:
   - outcome_score        — composite 0-1 score
   - confidence_calibration_bucket — high / medium / low
 """
+
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -27,6 +28,7 @@ log = structlog.get_logger()
 # =============================================================================
 # SINGLE PREDICTION EVALUATOR
 # =============================================================================
+
 
 async def evaluate_prediction(
     prediction: dict,
@@ -256,6 +258,7 @@ def _build_notes(
 # ROLLING KPI ENGINE
 # =============================================================================
 
+
 async def compute_rolling_kpis(
     evaluations: list[dict],
     window: int = 25,
@@ -296,9 +299,7 @@ async def compute_rolling_kpis(
             "insufficient_data": True,
         }
 
-    directional_correct = [
-        e for e in actionable if e.get("direction_correct") is True
-    ]
+    directional_correct = [e for e in actionable if e.get("direction_correct") is True]
     tp1_hit = [e for e in actionable if e.get("tp1_reached")]
     tp2_hit = [e for e in actionable if e.get("tp2_reached")]
     sl_first = [e for e in actionable if e.get("sl_reached_first")]
@@ -309,16 +310,13 @@ async def compute_rolling_kpis(
     sl_first_hit_rate = len(sl_first) / actionable_count
     # false positive = no direction correct AND no TP1 reached AND SL hit
     false_positives = [
-        e for e in actionable
-        if not e.get("direction_correct") and not e.get("tp1_reached")
+        e for e in actionable if not e.get("direction_correct") and not e.get("tp1_reached")
     ]
     false_positive_rate = len(false_positives) / actionable_count
 
     mfe_values = [e["mfe_pct"] for e in actionable if e.get("mfe_pct") is not None]
     mae_values = [e["mae_pct"] for e in actionable if e.get("mae_pct") is not None]
-    score_values = [
-        e["outcome_score"] for e in actionable if e.get("outcome_score") is not None
-    ]
+    score_values = [e["outcome_score"] for e in actionable if e.get("outcome_score") is not None]
 
     avg_mfe_pct = sum(mfe_values) / len(mfe_values) if mfe_values else None
     avg_mae_pct = sum(mae_values) / len(mae_values) if mae_values else None
@@ -376,6 +374,7 @@ async def should_trigger_adaptation(kpis: dict, config=None) -> tuple[bool, list
 
     if config is None:
         from config.settings import get_config
+
         config = get_config()
 
     adapt_cfg = config.adaptation
@@ -390,9 +389,7 @@ async def should_trigger_adaptation(kpis: dict, config=None) -> tuple[bool, list
         )
 
     if tp1 is not None and tp1 < adapt_cfg.min_tp1_reach_rate:
-        reasons.append(
-            f"tp1_reach_rate={tp1:.1%} < threshold {adapt_cfg.min_tp1_reach_rate:.1%}"
-        )
+        reasons.append(f"tp1_reach_rate={tp1:.1%} < threshold {adapt_cfg.min_tp1_reach_rate:.1%}")
 
     if fp is not None and fp > adapt_cfg.max_false_positive_rate:
         reasons.append(

@@ -19,6 +19,7 @@ Safety constraints:
   - freeze adaptation after MAX_FAILED_PROMOTIONS_BEFORE_FREEZE consecutive failures
   - never promote without a strategy_versions audit trail entry
 """
+
 import uuid
 from datetime import UTC, datetime
 
@@ -48,6 +49,7 @@ class AdaptiveStrategySupervisor:
 
     def __init__(self):
         from config.settings import get_config
+
         self._config = get_config()
         self._consecutive_failed_promotions = 0
 
@@ -67,6 +69,7 @@ class AdaptiveStrategySupervisor:
         Returns a summary dict describing what happened.
         """
         from memory.store import get_memory_store
+
         store = get_memory_store()
         adapt_cfg = self._config.adaptation
 
@@ -80,18 +83,21 @@ class AdaptiveStrategySupervisor:
                 "consecutive failed promotions."
             )
             log.warning("supervisor.adaptation_frozen", reason=msg)
-            await store.save_supervisor_event({
-                "event_type": "adaptation_frozen",
-                "symbol": symbol,
-                "timeframe": timeframe,
-                "correlation_id": cid,
-                "reason": msg,
-            })
+            await store.save_supervisor_event(
+                {
+                    "event_type": "adaptation_frozen",
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "correlation_id": cid,
+                    "reason": msg,
+                }
+            )
             return {"status": "frozen", "reason": msg}
 
         # --- KPI assessment ---
         evaluations = await store.get_prediction_evaluations(timeframe=timeframe)
         from tools.evaluation_tools import compute_rolling_kpis, should_trigger_adaptation
+
         short_kpis = await compute_rolling_kpis(
             evaluations, window=self._config.prediction.short_window
         )
@@ -107,18 +113,21 @@ class AdaptiveStrategySupervisor:
             symbol=symbol,
             timeframe=timeframe,
         )
-        await store.save_supervisor_event({
-            "event_type": "adaptation_triggered",
-            "symbol": symbol,
-            "timeframe": timeframe,
-            "correlation_id": cid,
-            "reasons": reasons,
-            "kpis_short_window": short_kpis,
-        })
+        await store.save_supervisor_event(
+            {
+                "event_type": "adaptation_triggered",
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "correlation_id": cid,
+                "reasons": reasons,
+                "kpis_short_window": short_kpis,
+            }
+        )
 
         # Publish degradation alert to Telegram
         try:
             from tools.notification_tools import TelegramPublisher
+
             if self._config.telegram.publish_degradation_alerts:
                 publisher = TelegramPublisher()
                 await publisher.publish_degradation_alert(short_kpis, reasons)
@@ -127,6 +136,7 @@ class AdaptiveStrategySupervisor:
 
         # --- Propose candidate params via SelfAssessmentAgent ---
         from agents.self_assessment import SelfAssessmentAgent
+
         agent = SelfAssessmentAgent()
         assessment = await agent.assess_and_evolve(
             symbol=symbol,
@@ -141,13 +151,15 @@ class AdaptiveStrategySupervisor:
                 decision=assessment.get("decision"),
             )
             self._consecutive_failed_promotions += 1
-            await store.save_supervisor_event({
-                "event_type": "candidate_rejected",
-                "symbol": symbol,
-                "timeframe": timeframe,
-                "correlation_id": cid,
-                "assessment_decision": assessment.get("decision"),
-            })
+            await store.save_supervisor_event(
+                {
+                    "event_type": "candidate_rejected",
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "correlation_id": cid,
+                    "assessment_decision": assessment.get("decision"),
+                }
+            )
             return {"status": "candidate_rejected", "assessment": assessment}
 
         proposed_params = assessment.get("proposed_params") or assessment.get("final_params")
@@ -224,14 +236,16 @@ class AdaptiveStrategySupervisor:
                 "rejected_at": datetime.now(UTC).isoformat(),
             }
             await store.save_strategy_version(rejected_version)
-            await store.save_supervisor_event({
-                "event_type": "shadow_validation_failed",
-                "version_id": version_id,
-                "symbol": symbol,
-                "timeframe": timeframe,
-                "correlation_id": cid,
-                "failure_reason": shadow_result.get("failure_reason"),
-            })
+            await store.save_supervisor_event(
+                {
+                    "event_type": "shadow_validation_failed",
+                    "version_id": version_id,
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "correlation_id": cid,
+                    "failure_reason": shadow_result.get("failure_reason"),
+                }
+            )
             return {
                 "status": "shadow_rejected",
                 "version_id": version_id,
@@ -257,20 +271,23 @@ class AdaptiveStrategySupervisor:
             mutations=mutations,
         )
 
-        await store.save_supervisor_event({
-            "event_type": "params_promoted",
-            "version_id": version_id,
-            "symbol": symbol,
-            "timeframe": timeframe,
-            "correlation_id": cid,
-            "prev_params": current_params,
-            "new_params": proposed_params,
-            "mutations": mutations,
-        })
+        await store.save_supervisor_event(
+            {
+                "event_type": "params_promoted",
+                "version_id": version_id,
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "correlation_id": cid,
+                "prev_params": current_params,
+                "new_params": proposed_params,
+                "mutations": mutations,
+            }
+        )
 
         # Publish strategy update to Telegram
         try:
             from tools.notification_tools import TelegramPublisher
+
             if self._config.telegram.publish_strategy_changes:
                 publisher = TelegramPublisher()
                 await publisher.publish_strategy_update(active_version)
@@ -301,6 +318,7 @@ class AdaptiveStrategySupervisor:
         to the previous active params.
         """
         from memory.store import get_memory_store
+
         store = get_memory_store()
 
         if not self._config.adaptation.rollback_on_short_window_degradation:
@@ -308,6 +326,7 @@ class AdaptiveStrategySupervisor:
 
         evaluations = await store.get_prediction_evaluations(timeframe=timeframe)
         from tools.evaluation_tools import compute_rolling_kpis, should_trigger_adaptation
+
         short_kpis = await compute_rolling_kpis(
             evaluations, window=self._config.prediction.short_window
         )
@@ -341,15 +360,17 @@ class AdaptiveStrategySupervisor:
             "reverted_to_version_id": previous.get("version_id"),
         }
         await store.save_strategy_version(rollback_version)
-        await store.save_supervisor_event({
-            "event_type": "params_rolled_back",
-            "from_version_id": current.get("version_id"),
-            "to_version_id": previous.get("version_id"),
-            "symbol": symbol,
-            "timeframe": timeframe,
-            "correlation_id": correlation_id,
-            "rollback_reasons": reasons,
-        })
+        await store.save_supervisor_event(
+            {
+                "event_type": "params_rolled_back",
+                "from_version_id": current.get("version_id"),
+                "to_version_id": previous.get("version_id"),
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "correlation_id": correlation_id,
+                "rollback_reasons": reasons,
+            }
+        )
 
         log.warning(
             "supervisor.params_rolled_back",
@@ -491,6 +512,7 @@ class AdaptiveStrategySupervisor:
 # =============================================================================
 # MUTATION HELPERS
 # =============================================================================
+
 
 def _count_param_mutations(current: dict, proposed: dict) -> int:
     """Count number of keys that differ between two param dicts."""

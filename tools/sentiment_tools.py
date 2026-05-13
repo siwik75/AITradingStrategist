@@ -6,6 +6,7 @@ Stock F&G:  CNN endpoint at https://production.dataviz.cnn.io/index/fearandgreed
 
 Both are read-only public endpoints. F&G updates daily — long cache TTL is fine.
 """
+
 from __future__ import annotations
 
 import json
@@ -50,6 +51,7 @@ def _clear_cache() -> None:
 # =============================================================================
 # FEAR & GREED — CRYPTO (alternative.me)
 # =============================================================================
+
 
 def _classify_fg(value: int) -> str:
     if value < 25:
@@ -114,9 +116,11 @@ async def get_fear_greed_crypto(timeout: float | None = None) -> dict:
         "available": True,
         "value": value,
         "classification": _classify_fg(value),
-        "timestamp": datetime.fromtimestamp(int(current.get("timestamp", 0)), tz=UTC).isoformat()
-        if current.get("timestamp")
-        else datetime.now(UTC).isoformat(),
+        "timestamp": (
+            datetime.fromtimestamp(int(current.get("timestamp", 0)), tz=UTC).isoformat()
+            if current.get("timestamp")
+            else datetime.now(UTC).isoformat()
+        ),
         "previous_value": previous_value,
         "delta": (value - previous_value) if previous_value is not None else None,
         "source": "alternative.me",
@@ -128,6 +132,7 @@ async def get_fear_greed_crypto(timeout: float | None = None) -> dict:
 # =============================================================================
 # FEAR & GREED — STOCKS (CNN)
 # =============================================================================
+
 
 async def get_fear_greed_stocks(timeout: float | None = None) -> dict:
     """
@@ -146,7 +151,9 @@ async def get_fear_greed_stocks(timeout: float | None = None) -> dict:
         "Accept": "application/json, text/plain, */*",
     }
     try:
-        async with httpx.AsyncClient(timeout=timeout or cfg.http_timeout_seconds, headers=headers) as client:
+        async with httpx.AsyncClient(
+            timeout=timeout or cfg.http_timeout_seconds, headers=headers
+        ) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             payload = resp.json()
@@ -290,7 +297,9 @@ async def summarize_news_sentiment(symbol: str, articles: list[dict]) -> dict:
                 system=_SUMMARIZER_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_message}],
             )
-            text = "".join(block.text for block in resp.content if getattr(block, "type", "") == "text")
+            text = "".join(
+                block.text for block in resp.content if getattr(block, "type", "") == "text"
+            )
             parsed = _safe_json(text)
             if parsed:
                 parsed["method"] = "llm_anthropic"

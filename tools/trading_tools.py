@@ -3,6 +3,7 @@ Trading Tools — Technical analysis, market data, backtesting.
 Each tool is a standalone function with typed parameters and docstrings
 for automatic schema generation (Anthropic tool_use / Strands SDK).
 """
+
 import json
 import math
 from datetime import UTC, datetime, timedelta
@@ -23,11 +24,9 @@ _YFINANCE_USD_QUOTES = {"USD", "USDT", "USDC", "BUSD"}
 # MARKET DATA TOOLS
 # =============================================================================
 
+
 async def get_ohlcv(
-    symbol: str,
-    timeframe: str = "1h",
-    limit: int = 200,
-    source: str = "default"
+    symbol: str, timeframe: str = "1h", limit: int = 200, source: str = "default"
 ) -> dict:
     """
     Fetch OHLCV candle data for a trading pair.
@@ -171,10 +170,7 @@ def _generate_synthetic(symbol: str, timeframe: str, limit: int) -> dict:
     base_price = {"BTC/USDT": 67500, "ETH/USDT": 3800, "AAPL": 195}.get(symbol, 100)
     volatility = base_price * 0.002  # 0.2% per candle
 
-    timestamps = [
-        _utc_now() - timedelta(minutes=minutes * (limit - i))
-        for i in range(limit)
-    ]
+    timestamps = [_utc_now() - timedelta(minutes=minutes * (limit - i)) for i in range(limit)]
 
     prices = [base_price]
     for _ in range(limit - 1):
@@ -211,7 +207,7 @@ async def _fetch_ccxt(symbol: str, timeframe: str, limit: int) -> dict:
         import ccxt.async_support as ccxt_async
     except ImportError as exc:
         raise ImportError(
-            "ccxt is not installed. Install live-data extras with `pip install -e \".[live-data]\"`."
+            'ccxt is not installed. Install live-data extras with `pip install -e ".[live-data]"`.'
         ) from exc
 
     exchange_id = get_config().market_data.ccxt_exchange
@@ -242,7 +238,7 @@ def _fetch_yfinance(symbol: str, timeframe: str, limit: int) -> dict:
         import yfinance as yf
     except ImportError as exc:
         raise ImportError(
-            "yfinance is not installed. Install live-data extras with `pip install -e \".[live-data]\"`."
+            'yfinance is not installed. Install live-data extras with `pip install -e ".[live-data]"`.'
         ) from exc
 
     yf_symbol = _normalize_symbol_for_yfinance(symbol)
@@ -355,6 +351,7 @@ def _resample_ohlcv_frame(df: pd.DataFrame, rule: str) -> pd.DataFrame:
 # TECHNICAL ANALYSIS TOOLS
 # =============================================================================
 
+
 async def calculate_indicators(
     symbol: str,
     timeframe: str = "1h",
@@ -369,43 +366,43 @@ async def calculate_indicators(
     :param source: Market data source (default, auto, ccxt, yfinance, synthetic)
     """
     log.info("tool.calculate_indicators", symbol=symbol, timeframe=timeframe, set=indicator_set)
-    
+
     data = await get_ohlcv(symbol, timeframe, limit=200, source=source)
     df = pd.DataFrame(data["candles"])
-    
+
     import ta
-    
+
     results = {
         "symbol": symbol,
         "timeframe": timeframe,
         "source": data.get("source", source),
         "price": df["close"].iloc[-1],
     }
-    
+
     if indicator_set in ("full", "trend"):
         # EMA crossovers
         df["ema_9"] = ta.trend.EMAIndicator(df["close"], window=9).ema_indicator()
         df["ema_21"] = ta.trend.EMAIndicator(df["close"], window=21).ema_indicator()
         df["ema_50"] = ta.trend.EMAIndicator(df["close"], window=50).ema_indicator()
         df["ema_200"] = ta.trend.EMAIndicator(df["close"], window=200).ema_indicator()
-        
+
         # MACD
         macd = ta.trend.MACD(df["close"])
         df["macd"] = macd.macd()
         df["macd_signal"] = macd.macd_signal()
         df["macd_hist"] = macd.macd_diff()
-        
+
         # ADX (trend strength)
         adx = ta.trend.ADXIndicator(df["high"], df["low"], df["close"], window=14)
         df["adx"] = adx.adx()
         df["di_plus"] = adx.adx_pos()
         df["di_minus"] = adx.adx_neg()
-        
+
         # Ichimoku
         ichi = ta.trend.IchimokuIndicator(df["high"], df["low"])
         df["ichimoku_a"] = ichi.ichimoku_a()
         df["ichimoku_b"] = ichi.ichimoku_b()
-        
+
         last = df.iloc[-1]
         results["trend"] = {
             "ema_9": round(last["ema_9"], 2),
@@ -420,38 +417,33 @@ async def calculate_indicators(
             "macd_histogram": round(last["macd_hist"], 4),
             "macd_cross": "bullish" if last["macd"] > last["macd_signal"] else "bearish",
             "adx": round(last["adx"], 2),
-            "adx_trend_strength": (
-                "strong" if last["adx"] > 25 else "weak"
-            ),
+            "adx_trend_strength": ("strong" if last["adx"] > 25 else "weak"),
             "di_plus": round(last["di_plus"], 2),
             "di_minus": round(last["di_minus"], 2),
         }
-    
+
     if indicator_set in ("full", "momentum"):
         # RSI
         df["rsi"] = ta.momentum.RSIIndicator(df["close"], window=14).rsi()
-        
+
         # Stochastic
         stoch = ta.momentum.StochasticOscillator(df["high"], df["low"], df["close"])
         df["stoch_k"] = stoch.stoch()
         df["stoch_d"] = stoch.stoch_signal()
-        
+
         # Williams %R
         df["williams_r"] = ta.momentum.WilliamsRIndicator(
             df["high"], df["low"], df["close"]
         ).williams_r()
-        
+
         # CCI
-        df["cci"] = ta.trend.CCIIndicator(
-            df["high"], df["low"], df["close"]
-        ).cci()
-        
+        df["cci"] = ta.trend.CCIIndicator(df["high"], df["low"], df["close"]).cci()
+
         last = df.iloc[-1]
         results["momentum"] = {
             "rsi": round(last["rsi"], 2),
             "rsi_zone": (
-                "overbought" if last["rsi"] > 70 else
-                "oversold" if last["rsi"] < 30 else "neutral"
+                "overbought" if last["rsi"] > 70 else "oversold" if last["rsi"] < 30 else "neutral"
             ),
             "stoch_k": round(last["stoch_k"], 2),
             "stoch_d": round(last["stoch_d"], 2),
@@ -459,7 +451,7 @@ async def calculate_indicators(
             "williams_r": round(last["williams_r"], 2),
             "cci": round(last["cci"], 2),
         }
-    
+
     if indicator_set in ("full", "volatility"):
         # Bollinger Bands
         bb = ta.volatility.BollingerBands(df["close"])
@@ -467,37 +459,40 @@ async def calculate_indicators(
         df["bb_lower"] = bb.bollinger_lband()
         df["bb_mid"] = bb.bollinger_mavg()
         df["bb_width"] = bb.bollinger_wband()
-        
+
         # ATR
         df["atr"] = ta.volatility.AverageTrueRange(
             df["high"], df["low"], df["close"], window=14
         ).average_true_range()
-        
+
         # Keltner Channel
         kc = ta.volatility.KeltnerChannel(df["high"], df["low"], df["close"])
         df["kc_upper"] = kc.keltner_channel_hband()
         df["kc_lower"] = kc.keltner_channel_lband()
-        
+
         last = df.iloc[-1]
         results["volatility"] = {
             "bb_upper": round(last["bb_upper"], 2),
             "bb_lower": round(last["bb_lower"], 2),
             "bb_mid": round(last["bb_mid"], 2),
             "bb_width": round(last["bb_width"], 4),
-            "bb_position": round(
-                (last["close"] - last["bb_lower"]) /
-                (last["bb_upper"] - last["bb_lower"]), 2
-            ) if last["bb_upper"] != last["bb_lower"] else 0.5,
+            "bb_position": (
+                round((last["close"] - last["bb_lower"]) / (last["bb_upper"] - last["bb_lower"]), 2)
+                if last["bb_upper"] != last["bb_lower"]
+                else 0.5
+            ),
             "atr": round(last["atr"], 2),
             "atr_pct": round(last["atr"] / last["close"] * 100, 3),
             "kc_upper": round(last["kc_upper"], 2),
             "kc_lower": round(last["kc_lower"], 2),
             "squeeze": last["bb_lower"] > last["kc_lower"],  # BB inside KC = squeeze
         }
-    
+
     if indicator_set in ("full", "volume"):
         # OBV
-        df["obv"] = ta.volume.OnBalanceVolumeIndicator(df["close"], df["volume"]).on_balance_volume()
+        df["obv"] = ta.volume.OnBalanceVolumeIndicator(
+            df["close"], df["volume"]
+        ).on_balance_volume()
 
         # Volume SMA
         df["vol_sma_20"] = df["volume"].rolling(20).mean()
@@ -510,17 +505,19 @@ async def calculate_indicators(
         results["volume"] = {
             "current_volume": round(last["volume"], 2),
             "volume_sma_20": round(last["vol_sma_20"], 2),
-            "volume_ratio": round(last["volume"] / last["vol_sma_20"], 2) if last["vol_sma_20"] > 0 else 1.0,
+            "volume_ratio": (
+                round(last["volume"] / last["vol_sma_20"], 2) if last["vol_sma_20"] > 0 else 1.0
+            ),
             "obv_trend": "rising" if df["obv"].iloc[-1] > df["obv"].iloc[-5] else "falling",
             "vwap": vwap_block["session"]["vwap"],
             "price_vs_vwap": vwap_block["session"]["price_vs_vwap"],
             "vwap_session": vwap_block["session"],
             "vwap_anchored": vwap_block["anchored"],
         }
-    
+
     # Support/Resistance levels
     results["levels"] = _calculate_support_resistance(df)
-    
+
     return results
 
 
@@ -572,18 +569,17 @@ def _compute_vwap_block(
     cum_pv_roll = pv.rolling(win, min_periods=2).sum()
     cum_v_roll = df["volume"].rolling(win, min_periods=2).sum().replace(0, np.nan)
     vwap_anchored = cum_pv_roll / cum_v_roll
-    var_anchored = (
-        ((typical_price - vwap_anchored) ** 2 * df["volume"])
-        .rolling(win, min_periods=2)
-        .sum()
-        / cum_v_roll
-    )
+    var_anchored = ((typical_price - vwap_anchored) ** 2 * df["volume"]).rolling(
+        win, min_periods=2
+    ).sum() / cum_v_roll
     std_anchored = np.sqrt(var_anchored.clip(lower=0))
 
     s1, s2 = band_sigma
 
     def _summary(vwap_series: pd.Series, std_series: pd.Series, lookback: int) -> dict:
-        last_vwap = float(vwap_series.iloc[-1]) if pd.notna(vwap_series.iloc[-1]) else float(close.iloc[-1])
+        last_vwap = (
+            float(vwap_series.iloc[-1]) if pd.notna(vwap_series.iloc[-1]) else float(close.iloc[-1])
+        )
         last_std = float(std_series.iloc[-1]) if pd.notna(std_series.iloc[-1]) else 0.0
         last_close = float(close.iloc[-1])
         # Slope: pct change of vwap over the last `lookback` candles (or len-1)
@@ -620,7 +616,9 @@ def _compute_vwap_block(
         }
 
     session_summary = _summary(vwap_session, std_session, lookback=min(10, len(vwap_session) - 1))
-    anchored_summary = _summary(vwap_anchored, std_anchored, lookback=min(10, len(vwap_anchored) - 1))
+    anchored_summary = _summary(
+        vwap_anchored, std_anchored, lookback=min(10, len(vwap_anchored) - 1)
+    )
 
     return {
         "session": session_summary,
@@ -638,7 +636,7 @@ def _calculate_support_resistance(df: pd.DataFrame, window: int = 20) -> dict:
     s1 = 2 * pivot - recent["high"].max()
     r2 = pivot + (recent["high"].max() - recent["low"].min())
     s2 = pivot - (recent["high"].max() - recent["low"].min())
-    
+
     return {
         "pivot": round(pivot, 2),
         "resistance_1": round(r1, 2),
@@ -651,6 +649,7 @@ def _calculate_support_resistance(df: pd.DataFrame, window: int = 20) -> dict:
 # =============================================================================
 # BACKTESTING TOOLS
 # =============================================================================
+
 
 async def run_backtest(
     symbol: str,
@@ -668,9 +667,9 @@ async def run_backtest(
     :param source: Market data source (default, auto, ccxt, yfinance, synthetic)
     """
     log.info("tool.run_backtest", symbol=symbol, days=days)
-    
+
     params = json.loads(strategy_params) if isinstance(strategy_params, str) else strategy_params
-    
+
     # Default strategy params
     rsi_oversold = params.get("rsi_oversold", 30)
     rsi_overbought = params.get("rsi_overbought", 70)
@@ -682,28 +681,30 @@ async def run_backtest(
     min_adx = params.get("min_adx", 20)
     use_macd_filter = params.get("use_macd_filter", True)
     use_volume_filter = params.get("use_volume_filter", True)
-    
+
     # Get historical data
     candles_needed = int(days * 24 * 60 / _timeframe_to_minutes(timeframe))
     data = await get_ohlcv(symbol, timeframe, limit=min(candles_needed, 500), source=source)
     df = pd.DataFrame(data["candles"])
-    
+
     import ta
-    
+
     # Calculate indicators
     df["ema_fast"] = ta.trend.EMAIndicator(df["close"], window=ema_fast).ema_indicator()
     df["ema_slow"] = ta.trend.EMAIndicator(df["close"], window=ema_slow).ema_indicator()
     df["rsi"] = ta.momentum.RSIIndicator(df["close"], window=14).rsi()
-    df["atr"] = ta.volatility.AverageTrueRange(df["high"], df["low"], df["close"]).average_true_range()
+    df["atr"] = ta.volatility.AverageTrueRange(
+        df["high"], df["low"], df["close"]
+    ).average_true_range()
     adx_ind = ta.trend.ADXIndicator(df["high"], df["low"], df["close"], window=14)
     df["adx"] = adx_ind.adx()
     macd_ind = ta.trend.MACD(df["close"])
     df["macd"] = macd_ind.macd()
     df["macd_signal"] = macd_ind.macd_signal()
     df["vol_sma"] = df["volume"].rolling(20).mean()
-    
+
     df = df.dropna().reset_index(drop=True)
-    
+
     # Simulate trades with two-phase partial exit:
     #   Phase 1 (full position): SL = full loss | TP1 = 50% exit + move SL to breakeven
     #   Phase 2 (50% remaining): SL = breakeven | TP2 = 50% exit
@@ -722,9 +723,7 @@ async def run_backtest(
                     if current["low"] <= trade["stop_loss"]:
                         trade["exit_price"] = trade["stop_loss"]
                         trade["exit_reason"] = "stop_loss"
-                        trade["pnl_pct"] = round(
-                            (trade["stop_loss"] / entry - 1) * 100, 3
-                        )
+                        trade["pnl_pct"] = round((trade["stop_loss"] / entry - 1) * 100, 3)
                         in_position = False
                     elif current["high"] >= trade["tp2"]:
                         # Both TP1 and TP2 hit in the same candle: model as 50%+50%
@@ -762,9 +761,7 @@ async def run_backtest(
                     if current["high"] >= trade["stop_loss"]:
                         trade["exit_price"] = trade["stop_loss"]
                         trade["exit_reason"] = "stop_loss"
-                        trade["pnl_pct"] = round(
-                            (1 - trade["stop_loss"] / entry) * 100, 3
-                        )
+                        trade["pnl_pct"] = round((1 - trade["stop_loss"] / entry) * 100, 3)
                         in_position = False
                     elif current["low"] <= trade["tp2"]:
                         tp1_pnl = (1 - trade["tp1"] / entry) * 100
@@ -794,70 +791,82 @@ async def run_backtest(
                         trade["pnl_pct"] = round(0.5 * tp1_pnl + 0.5 * tp2_pnl, 3)
                         in_position = False
             continue
-        
+
         prev = df.iloc[i - 1]
         curr = df.iloc[i]
         atr = curr["atr"]
-        
+
         # Signal conditions
         long_signal = (
-            prev["ema_fast"] <= prev["ema_slow"] and curr["ema_fast"] > curr["ema_slow"]
-            and curr["rsi"] < rsi_overbought and curr["rsi"] > rsi_oversold
+            prev["ema_fast"] <= prev["ema_slow"]
+            and curr["ema_fast"] > curr["ema_slow"]
+            and curr["rsi"] < rsi_overbought
+            and curr["rsi"] > rsi_oversold
             and (not use_macd_filter or curr["macd"] > curr["macd_signal"])
             and curr["adx"] > min_adx
             and (not use_volume_filter or curr["volume"] > curr["vol_sma"] * 1.1)
         )
-        
+
         short_signal = (
-            prev["ema_fast"] >= prev["ema_slow"] and curr["ema_fast"] < curr["ema_slow"]
-            and curr["rsi"] < rsi_overbought and curr["rsi"] > rsi_oversold
+            prev["ema_fast"] >= prev["ema_slow"]
+            and curr["ema_fast"] < curr["ema_slow"]
+            and curr["rsi"] < rsi_overbought
+            and curr["rsi"] > rsi_oversold
             and (not use_macd_filter or curr["macd"] < curr["macd_signal"])
             and curr["adx"] > min_adx
             and (not use_volume_filter or curr["volume"] > curr["vol_sma"] * 1.1)
         )
-        
+
         if long_signal:
             entry = curr["close"]
-            trades.append({
-                "direction": "LONG",
-                "entry_price": round(entry, 2),
-                "stop_loss": round(entry - atr * atr_sl_multiplier, 2),
-                "tp1": round(entry + atr * atr_tp1_multiplier, 2),
-                "tp2": round(entry + atr * atr_tp2_multiplier, 2),
-                "entry_idx": i,
-                "timestamp": curr["timestamp"],
-                "indicators": {
-                    "rsi": round(curr["rsi"], 2),
-                    "adx": round(curr["adx"], 2),
-                    "atr": round(atr, 2),
-                },
-                "tp1_hit": False,
-                "tp1_exit_pct": None,
-                "exit_price": None, "exit_reason": None, "pnl_pct": None,
-            })
+            trades.append(
+                {
+                    "direction": "LONG",
+                    "entry_price": round(entry, 2),
+                    "stop_loss": round(entry - atr * atr_sl_multiplier, 2),
+                    "tp1": round(entry + atr * atr_tp1_multiplier, 2),
+                    "tp2": round(entry + atr * atr_tp2_multiplier, 2),
+                    "entry_idx": i,
+                    "timestamp": curr["timestamp"],
+                    "indicators": {
+                        "rsi": round(curr["rsi"], 2),
+                        "adx": round(curr["adx"], 2),
+                        "atr": round(atr, 2),
+                    },
+                    "tp1_hit": False,
+                    "tp1_exit_pct": None,
+                    "exit_price": None,
+                    "exit_reason": None,
+                    "pnl_pct": None,
+                }
+            )
             in_position = True
 
         elif short_signal:
             entry = curr["close"]
-            trades.append({
-                "direction": "SHORT",
-                "entry_price": round(entry, 2),
-                "stop_loss": round(entry + atr * atr_sl_multiplier, 2),
-                "tp1": round(entry - atr * atr_tp1_multiplier, 2),
-                "tp2": round(entry - atr * atr_tp2_multiplier, 2),
-                "entry_idx": i,
-                "timestamp": curr["timestamp"],
-                "indicators": {
-                    "rsi": round(curr["rsi"], 2),
-                    "adx": round(curr["adx"], 2),
-                    "atr": round(atr, 2),
-                },
-                "tp1_hit": False,
-                "tp1_exit_pct": None,
-                "exit_price": None, "exit_reason": None, "pnl_pct": None,
-            })
+            trades.append(
+                {
+                    "direction": "SHORT",
+                    "entry_price": round(entry, 2),
+                    "stop_loss": round(entry + atr * atr_sl_multiplier, 2),
+                    "tp1": round(entry - atr * atr_tp1_multiplier, 2),
+                    "tp2": round(entry - atr * atr_tp2_multiplier, 2),
+                    "entry_idx": i,
+                    "timestamp": curr["timestamp"],
+                    "indicators": {
+                        "rsi": round(curr["rsi"], 2),
+                        "adx": round(curr["adx"], 2),
+                        "atr": round(atr, 2),
+                    },
+                    "tp1_hit": False,
+                    "tp1_exit_pct": None,
+                    "exit_price": None,
+                    "exit_reason": None,
+                    "pnl_pct": None,
+                }
+            )
             in_position = True
-    
+
     # Close any open position at last price
     if trades and trades[-1]["exit_price"] is None:
         last_price = df.iloc[-1]["close"]
@@ -878,32 +887,35 @@ async def run_backtest(
                 trade["pnl_pct"] = round(0.5 * trade["tp1_exit_pct"] + 0.5 * remainder_pnl, 3)
             else:
                 trade["pnl_pct"] = round(remainder_pnl, 3)
-    
+
     # Compute metrics
     completed = [t for t in trades if t["exit_price"] is not None]
-    
+
     if not completed:
         return {
-            "symbol": symbol, "timeframe": timeframe, "days": days,
-            "total_trades": 0, "message": "No trades generated",
-            "strategy_params": params
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "days": days,
+            "total_trades": 0,
+            "message": "No trades generated",
+            "strategy_params": params,
         }
-    
+
     wins = [t for t in completed if t["pnl_pct"] and t["pnl_pct"] > 0]
     losses = [t for t in completed if t["pnl_pct"] and t["pnl_pct"] <= 0]
     pnl_list = [t["pnl_pct"] for t in completed if t["pnl_pct"] is not None]
-    
+
     # Drawdown calculation
     cumulative = np.cumsum(pnl_list)
     running_max = np.maximum.accumulate(cumulative)
     drawdown = cumulative - running_max
-    
+
     # Exit distribution
     exit_dist = {}
     for t in completed:
         reason = t["exit_reason"]
         exit_dist[reason] = exit_dist.get(reason, 0) + 1
-    
+
     result = {
         "symbol": symbol,
         "timeframe": timeframe,
@@ -919,15 +931,20 @@ async def run_backtest(
         "avg_loss_pct": round(np.mean([t["pnl_pct"] for t in losses]), 3) if losses else 0,
         "max_drawdown_pct": round(float(drawdown.min()), 3) if len(drawdown) > 0 else 0,
         "profit_factor": round(
-            abs(sum(t["pnl_pct"] for t in wins)) /
-            abs(sum(t["pnl_pct"] for t in losses))
-            if losses and sum(t["pnl_pct"] for t in losses) != 0 else 0,
-            2
+            (
+                abs(sum(t["pnl_pct"] for t in wins)) / abs(sum(t["pnl_pct"] for t in losses))
+                if losses and sum(t["pnl_pct"] for t in losses) != 0
+                else 0
+            ),
+            2,
         ),
         "sharpe_approx": round(
-            np.mean(pnl_list) / np.std(pnl_list) * np.sqrt(len(pnl_list))
-            if np.std(pnl_list) > 0 else 0,
-            2
+            (
+                np.mean(pnl_list) / np.std(pnl_list) * np.sqrt(len(pnl_list))
+                if np.std(pnl_list) > 0
+                else 0
+            ),
+            2,
         ),
         "exit_distribution": exit_dist,
         "trades": completed[:20],  # cap for LLM context size
@@ -936,6 +953,7 @@ async def run_backtest(
     # Persist completed trades for self-assessment history
     try:
         from memory.store import get_memory_store
+
         store = get_memory_store()
         for trade in completed:
             await store.save_trade_signal(
@@ -974,6 +992,7 @@ async def get_strategy_params(timeframe: str | None = None) -> dict:
     :param timeframe: Optional timeframe scope (e.g. 15m, 1h, 4h)
     """
     from memory.store import get_memory_store
+
     store = get_memory_store()
     saved = await store.get_strategy_params(timeframe=timeframe)
     if saved is not None:
@@ -994,6 +1013,7 @@ async def save_strategy_params(
     """
     params = json.loads(params_json) if isinstance(params_json, str) else params_json
     from memory.store import get_memory_store
+
     store = get_memory_store()
     await store.save_strategy_params(params, timeframe=timeframe)
     log.info("tool.save_strategy_params", params=params, timeframe=timeframe)
@@ -1006,6 +1026,7 @@ async def get_trade_history(days: int = 30) -> dict:
     :param days: Number of days of history to retrieve
     """
     from memory.store import get_memory_store
+
     store = get_memory_store()
     trades = await store.get_trade_history(days=days)
     return {

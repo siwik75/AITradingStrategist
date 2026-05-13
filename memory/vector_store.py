@@ -11,6 +11,7 @@ Embedder backends:
 If chromadb is not installed, the store degrades to a no-op stub so the rest
 of the system continues to function.
 """
+
 from __future__ import annotations
 
 import json
@@ -30,6 +31,7 @@ log = structlog.get_logger()
 # =============================================================================
 # EMBEDDER PROTOCOL + IMPLEMENTATIONS
 # =============================================================================
+
 
 class Embedder(Protocol):
     name: str
@@ -61,7 +63,9 @@ class OpenAIEmbedder:
     def __init__(self, model: str, api_key: str, base_url: str | None = None):
         from openai import OpenAI
 
-        self._client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
+        self._client = (
+            OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
+        )
         self._model = model
         self.name = model
         self.dimension = 1536  # text-embedding-3-small default; updated on first call
@@ -110,6 +114,7 @@ def build_embedder() -> Embedder | None:
 # =============================================================================
 # CHROMA WRAPPER
 # =============================================================================
+
 
 class _NoOpVectorStore:
     """Fallback when chromadb is not installed — keeps the rest of the system running."""
@@ -304,6 +309,7 @@ def reset_vector_store() -> None:
 # SETUP / OUTCOME → DOCUMENT FORMATTER
 # =============================================================================
 
+
 def format_setup_document(prediction: dict, evaluation: dict | None = None) -> str:
     """
     Render a stable, embedding-friendly description of a signal setup + outcome.
@@ -346,11 +352,11 @@ def format_setup_document(prediction: dict, evaluation: dict | None = None) -> s
 
     # Market context (news/F&G/liquidity)
     if market:
-        if (fg := market.get("fear_greed")):
+        if fg := market.get("fear_greed"):
             parts.append(f"fg={fg.get('classification', '?')}({fg.get('value', '?')})")
-        if (ns := market.get("news_sentiment")):
+        if ns := market.get("news_sentiment"):
             parts.append(f"news={ns.get('overall_sentiment', '?')}")
-        if (liq := market.get("liquidity", {}).get("zones", {})):
+        if liq := market.get("liquidity", {}).get("zones", {}):
             parts.append(f"micro={liq.get('imbalance_label', '?')}")
 
     # Evaluation block (the outcome)
@@ -361,7 +367,7 @@ def format_setup_document(prediction: dict, evaluation: dict | None = None) -> s
         parts.append(f"outcome.sl_hit={evaluation.get('sl_hit', '?')}")
         if (pnl := evaluation.get("pnl_pct")) is not None:
             parts.append(f"outcome.pnl_pct={round(float(pnl), 3)}")
-        if (label := evaluation.get("result_label")):
+        if label := evaluation.get("result_label"):
             parts.append(f"outcome.label={label}")
 
     return " | ".join(parts)
@@ -393,6 +399,7 @@ def build_outcome_metadata(prediction: dict, evaluation: dict) -> dict:
 # =============================================================================
 # INTERNAL HELPERS
 # =============================================================================
+
 
 def _chroma_where(where: dict[str, Any] | None) -> dict[str, Any] | None:
     """
@@ -438,7 +445,9 @@ def _unpack_query_result(result: dict) -> list[dict]:
                 "document": docs[i] if i < len(docs) else "",
                 "metadata": metas[i] if i < len(metas) else {},
                 "distance": float(dists[i]) if i < len(dists) and dists[i] is not None else None,
-                "similarity": (1.0 - float(dists[i])) if i < len(dists) and dists[i] is not None else None,
+                "similarity": (
+                    (1.0 - float(dists[i])) if i < len(dists) and dists[i] is not None else None
+                ),
             }
         )
     return rows

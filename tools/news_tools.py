@@ -20,6 +20,7 @@ All fetchers return a list of NormalizedArticle dicts:
       "raw": dict,                       # provider-specific original payload
     }
 """
+
 from __future__ import annotations
 
 import time
@@ -84,12 +85,26 @@ def _is_crypto_symbol(symbol: str) -> bool:
     if "/" in symbol:
         return True
     base = _base_symbol(symbol)
-    return base in {"BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "DOT", "MATIC", "LINK", "TON"}
+    return base in {
+        "BTC",
+        "ETH",
+        "SOL",
+        "BNB",
+        "XRP",
+        "ADA",
+        "DOGE",
+        "AVAX",
+        "DOT",
+        "MATIC",
+        "LINK",
+        "TON",
+    }
 
 
 # =============================================================================
 # PROVIDER: CRYPTOPANIC
 # =============================================================================
+
 
 # CryptoPanic vote → sentiment heuristic
 def _cryptopanic_sentiment(votes: dict | None) -> tuple[str | None, float | None]:
@@ -156,7 +171,9 @@ async def fetch_cryptopanic(
                 "url": post.get("url", ""),
                 "published_at": post.get("published_at", ""),
                 "summary": post.get("title", ""),  # CryptoPanic doesn't return bodies on free tier
-                "tickers": [c.get("code", "") for c in (post.get("currencies") or []) if c.get("code")],
+                "tickers": [
+                    c.get("code", "") for c in (post.get("currencies") or []) if c.get("code")
+                ],
                 "sentiment": sentiment,
                 "sentiment_score": score,
                 "relevance": None,
@@ -171,6 +188,7 @@ async def fetch_cryptopanic(
 # =============================================================================
 # PROVIDER: ALPHA VANTAGE NEWS & SENTIMENT
 # =============================================================================
+
 
 def _alpha_vantage_label(score: float) -> str:
     """Alpha Vantage sentiment label thresholds (their published thresholds)."""
@@ -276,6 +294,7 @@ async def fetch_alpha_vantage_news(
 # PROVIDER: NEWSAPI.ORG
 # =============================================================================
 
+
 async def fetch_newsapi(
     symbol: str,
     limit: int = 15,
@@ -306,7 +325,9 @@ async def fetch_newsapi(
         "apiKey": cfg.newsapi_api_key,
     }
     if cfg.lookback_hours > 0:
-        params["from"] = (datetime.now(UTC) - timedelta(hours=cfg.lookback_hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        params["from"] = (datetime.now(UTC) - timedelta(hours=cfg.lookback_hours)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
 
     url = "https://newsapi.org/v2/everything"
     try:
@@ -346,6 +367,7 @@ async def fetch_newsapi(
 # =============================================================================
 # UNIFIED FETCH
 # =============================================================================
+
 
 async def fetch_news(
     symbol: str,

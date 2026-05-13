@@ -8,6 +8,7 @@ to spend tool-call rounds on data fetching it can't reason about.
 Each sub-fetcher fails soft: if a provider is unconfigured or errors, that
 section is marked unavailable but the rest of the context still flows.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -68,13 +69,17 @@ async def build_market_context(
     )
 
     if isinstance(news_raw, Exception):
-        log.warning("market_context.news_failed", error=str(news_raw), correlation_id=correlation_id)
+        log.warning(
+            "market_context.news_failed", error=str(news_raw), correlation_id=correlation_id
+        )
         news_raw = {"articles": [], "enabled": True, "error": str(news_raw)}
     if isinstance(fg, Exception):
         log.warning("market_context.fg_failed", error=str(fg), correlation_id=correlation_id)
         fg = {"available": False, "error": str(fg)}
     if isinstance(liquidity, Exception):
-        log.warning("market_context.liquidity_failed", error=str(liquidity), correlation_id=correlation_id)
+        log.warning(
+            "market_context.liquidity_failed", error=str(liquidity), correlation_id=correlation_id
+        )
         liquidity = {"available": False, "error": str(liquidity)}
 
     # Summarize news only if we have articles
@@ -95,10 +100,14 @@ async def build_market_context(
         "fear_greed": fg,
         "news": {
             "enabled": news_raw.get("enabled", True) if isinstance(news_raw, dict) else False,
-            "article_count": len(news_raw.get("articles", []) or []) if isinstance(news_raw, dict) else 0,
+            "article_count": (
+                len(news_raw.get("articles", []) or []) if isinstance(news_raw, dict) else 0
+            ),
             "by_source": news_raw.get("by_source", {}) if isinstance(news_raw, dict) else {},
             "missing_keys": news_raw.get("missing_keys", []) if isinstance(news_raw, dict) else [],
-            "top_articles": _trim_articles(news_raw.get("articles", []) if isinstance(news_raw, dict) else [], n=8),
+            "top_articles": _trim_articles(
+                news_raw.get("articles", []) if isinstance(news_raw, dict) else [], n=8
+            ),
         },
         "news_sentiment": news_sentiment,
         "liquidity": liquidity,
@@ -108,6 +117,7 @@ async def build_market_context(
 # =============================================================================
 # PROMPT FORMATTING
 # =============================================================================
+
 
 def format_market_context_text(ctx: dict) -> str:
     """Render the context dict as a compact block for prompt injection."""
@@ -122,7 +132,9 @@ def format_market_context_text(ctx: dict) -> str:
             f"({fg.get('classification')}){delta_str}"
         )
     else:
-        lines.append(f"- Fear & Greed: unavailable ({fg.get('reason') or fg.get('error') or 'n/a'})")
+        lines.append(
+            f"- Fear & Greed: unavailable ({fg.get('reason') or fg.get('error') or 'n/a'})"
+        )
 
     ns = ctx.get("news_sentiment") or {}
     if ns and ns.get("overall_sentiment"):
@@ -165,8 +177,7 @@ def format_market_context_text(ctx: dict) -> str:
         rw = zones.get("resistance_walls") or []
         if sw:
             lines.append(
-                "  support_walls: "
-                + ", ".join(f"{w['price']}@x{w['size_x_avg']}" for w in sw[:3])
+                "  support_walls: " + ", ".join(f"{w['price']}@x{w['size_x_avg']}" for w in sw[:3])
             )
         if rw:
             lines.append(
@@ -188,6 +199,7 @@ def format_market_context_text(ctx: dict) -> str:
 # =============================================================================
 # INTERNAL HELPERS
 # =============================================================================
+
 
 async def _placeholder(value: dict) -> dict:
     return value

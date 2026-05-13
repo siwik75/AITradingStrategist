@@ -11,6 +11,7 @@ This agent:
 This is the "brain" that makes the system adaptive — it embodies the
 concept of an agent that autonomously improves its own decision-making.
 """
+
 import structlog
 
 from agents.base import AgentConfig, BaseAgent
@@ -86,12 +87,12 @@ Always respond with valid JSON only."""
 class SelfAssessmentAgent(BaseAgent):
     """
     Autonomous strategy evolution agent.
-    
+
     Workflow:
     1. Load current strategy params
     2. Run backtest with current params
     3. Analyze performance
-    4. Generate mutation proposals  
+    4. Generate mutation proposals
     5. Run backtest with proposed params
     6. Compare A vs B
     7. Promote winner
@@ -99,6 +100,7 @@ class SelfAssessmentAgent(BaseAgent):
 
     def __init__(self, use_openai_gateway: bool = False, model: str | None = None):
         from config.settings import get_config
+
         resolved_model = model or get_config().llm.assessment_model
         config = AgentConfig(
             name="self_assessment_agent",
@@ -126,7 +128,7 @@ class SelfAssessmentAgent(BaseAgent):
     ) -> dict:
         """
         Run the full self-assessment cycle.
-        
+
         :param symbol: Trading symbol to assess
         :param timeframe: Primary timeframe
         :param backtest_days: Days of data for backtesting
@@ -173,7 +175,7 @@ STEP 7: Compare results. If the proposed params show improvement:
 Provide your full assessment as the final JSON output."""
 
         result_str = await self.run(task, correlation_id=correlation_id)
-        
+
         # Try to parse as JSON
         try:
             result = parse_json_response(result_str)
@@ -183,10 +185,12 @@ Provide your full assessment as the final JSON output."""
             if decision in ("ADOPT", "PARTIAL") and final_params:
                 try:
                     from memory.store import get_memory_store
+
                     store = get_memory_store()
                     await store.save_strategy_params(final_params, timeframe=timeframe)
                     await store.save_assessment(result, correlation_id=correlation_id)
-                    log.info("agent.assessment.params_persisted",
+                    log.info(
+                        "agent.assessment.params_persisted",
                         decision=decision,
                         correlation_id=correlation_id,
                     )
@@ -194,7 +198,8 @@ Provide your full assessment as the final JSON output."""
                     log.warning("agent.assessment.persist_failed", error=str(persist_err))
             return result
         except ValueError:
-            log.warning("agent.assessment.json_parse_failed",
+            log.warning(
+                "agent.assessment.json_parse_failed",
                 agent="self_assessment_agent",
                 correlation_id=correlation_id,
             )

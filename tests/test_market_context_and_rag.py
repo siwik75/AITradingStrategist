@@ -8,6 +8,7 @@ Tests for the v2 trading intelligence layer:
 - MarketContextBuilder
 - Knowledge indexer
 """
+
 # ruff: noqa: I001
 
 from unittest.mock import patch
@@ -39,6 +40,7 @@ def isolated_env(monkeypatch, tmp_path):
 
     # Clear in-process caches in news/sentiment/liquidity modules
     from tools import news_tools, sentiment_tools, liquidity_tools
+
     news_tools._clear_cache()
     sentiment_tools._clear_cache()
     liquidity_tools._clear_cache()
@@ -53,6 +55,7 @@ def isolated_env(monkeypatch, tmp_path):
 # 1. VWAP ENHANCEMENTS
 # =============================================================================
 
+
 class TestVwapBlock:
     @pytest.mark.asyncio
     async def test_vwap_block_present_in_full_indicators(self):
@@ -66,7 +69,15 @@ class TestVwapBlock:
         assert "vwap_anchored" in vol
 
         session = vol["vwap_session"]
-        for k in ("vwap", "upper_1s", "lower_1s", "upper_2s", "lower_2s", "slope_pct", "band_position"):
+        for k in (
+            "vwap",
+            "upper_1s",
+            "lower_1s",
+            "upper_2s",
+            "lower_2s",
+            "slope_pct",
+            "band_position",
+        ):
             assert k in session
 
         assert session["upper_2s"] >= session["upper_1s"] >= session["vwap"]
@@ -108,6 +119,7 @@ class TestVwapBlock:
 # 2. NEWS TOOLS — mocked HTTP
 # =============================================================================
 
+
 class TestNewsTools:
     @pytest.mark.asyncio
     async def test_fetch_news_returns_empty_when_no_keys(self):
@@ -115,12 +127,15 @@ class TestNewsTools:
 
         result = await fetch_news("BTC/USDT")
         assert result["articles"] == []
-        assert {"CRYPTOPANIC_API_KEY", "ALPHA_VANTAGE_API_KEY", "NEWSAPI_API_KEY"} == set(result["missing_keys"])
+        assert {"CRYPTOPANIC_API_KEY", "ALPHA_VANTAGE_API_KEY", "NEWSAPI_API_KEY"} == set(
+            result["missing_keys"]
+        )
 
     @pytest.mark.asyncio
     async def test_cryptopanic_fetch_normalises_articles(self, monkeypatch):
         monkeypatch.setenv("CRYPTOPANIC_API_KEY", "test-key")
         from config.settings import reset_config
+
         reset_config()
 
         sample = {
@@ -161,6 +176,7 @@ class TestNewsTools:
 
         with patch("tools.news_tools.httpx.AsyncClient", FakeClient):
             from tools.news_tools import fetch_cryptopanic
+
             articles = await fetch_cryptopanic("BTC/USDT")
 
         assert len(articles) == 1
@@ -174,6 +190,7 @@ class TestNewsTools:
 # 3. SENTIMENT TOOLS — F&G + heuristic summarizer
 # =============================================================================
 
+
 class TestSentimentTools:
     @pytest.mark.asyncio
     async def test_fear_greed_crypto_parses_payload(self, monkeypatch):
@@ -186,17 +203,29 @@ class TestSentimentTools:
 
         class FakeResp:
             status_code = 200
-            def raise_for_status(self): return None
-            def json(self): return payload
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return payload
 
         class FakeClient:
-            def __init__(self, *a, **kw): pass
-            async def __aenter__(self): return self
-            async def __aexit__(self, *exc): return False
-            async def get(self, url, params=None): return FakeResp()
+            def __init__(self, *a, **kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def get(self, url, params=None):
+                return FakeResp()
 
         with patch("tools.sentiment_tools.httpx.AsyncClient", FakeClient):
             from tools.sentiment_tools import get_fear_greed_crypto
+
             fg = await get_fear_greed_crypto()
 
         assert fg["available"] is True
@@ -210,9 +239,24 @@ class TestSentimentTools:
         from tools.sentiment_tools import summarize_news_sentiment
 
         articles = [
-            {"title": "ETF approval bullish", "sentiment_score": 0.6, "sentiment": "bullish", "source": "x"},
-            {"title": "Hack drains exchange", "sentiment_score": -0.5, "sentiment": "bearish", "source": "y"},
-            {"title": "BTC sideways", "sentiment_score": 0.05, "sentiment": "neutral", "source": "z"},
+            {
+                "title": "ETF approval bullish",
+                "sentiment_score": 0.6,
+                "sentiment": "bullish",
+                "source": "x",
+            },
+            {
+                "title": "Hack drains exchange",
+                "sentiment_score": -0.5,
+                "sentiment": "bearish",
+                "source": "y",
+            },
+            {
+                "title": "BTC sideways",
+                "sentiment_score": 0.05,
+                "sentiment": "neutral",
+                "source": "z",
+            },
         ]
         result = await summarize_news_sentiment("BTC/USDT", articles)
         assert result["method"] == "heuristic_average"
@@ -224,11 +268,13 @@ class TestSentimentTools:
 # 4. LIQUIDITY TOOLS — zones + slippage
 # =============================================================================
 
+
 class TestLiquidityTools:
     @pytest.mark.asyncio
     async def test_fetch_order_book_handles_missing_ccxt(self, monkeypatch):
         # Force the import inside fetch_order_book to fail
         import sys
+
         monkeypatch.setitem(sys.modules, "ccxt", None)
         from tools.liquidity_tools import fetch_order_book
 
@@ -240,6 +286,7 @@ class TestLiquidityTools:
         # Use a small wall multiplier so the synthetic walls easily clear the threshold
         monkeypatch.setenv("LIQUIDITY_WALL_MULTIPLIER", "2.0")
         from config.settings import reset_config
+
         reset_config()
         from tools.liquidity_tools import compute_liquidity_zones, estimate_slippage
 
@@ -274,10 +321,12 @@ class TestLiquidityTools:
 # 5. VECTOR STORE — degrades gracefully without chromadb
 # =============================================================================
 
+
 class TestVectorStoreFallback:
     def test_noop_store_when_chromadb_missing(self, monkeypatch):
         # Simulate chromadb being unavailable by stubbing the import
         import sys
+
         monkeypatch.setitem(sys.modules, "chromadb", None)
         from memory.vector_store import get_vector_store, reset_vector_store
 
@@ -291,6 +340,7 @@ class TestVectorStoreFallback:
 # =============================================================================
 # 6. KNOWLEDGE TOOLS — RAG + KPIs over mocked persistence
 # =============================================================================
+
 
 class TestKnowledgeTools:
     @pytest.mark.asyncio
@@ -378,6 +428,7 @@ class TestKnowledgeTools:
     async def test_query_similar_setups_falls_back_to_noop(self, monkeypatch):
         # No vector store available → returns hits=[], available=False
         import sys
+
         monkeypatch.setitem(sys.modules, "chromadb", None)
         from memory.vector_store import reset_vector_store
         from tools.knowledge_tools import query_similar_setups
@@ -392,6 +443,7 @@ class TestKnowledgeTools:
 # 7. MARKET CONTEXT BUILDER
 # =============================================================================
 
+
 class TestMarketContext:
     @pytest.mark.asyncio
     async def test_market_context_aggregates_with_disabled_sources(self, monkeypatch):
@@ -399,6 +451,7 @@ class TestMarketContext:
         monkeypatch.setenv("NEWS_ENABLED", "false")
         monkeypatch.setenv("LIQUIDITY_ENABLED", "false")
         from config.settings import reset_config
+
         reset_config()
 
         # Stub get_fear_greed to avoid network
@@ -421,7 +474,13 @@ class TestMarketContext:
         from workflows.market_context import format_market_context_text
 
         ctx = {
-            "fear_greed": {"available": True, "value": 72, "classification": "greed", "source": "alternative.me", "delta": 5},
+            "fear_greed": {
+                "available": True,
+                "value": 72,
+                "classification": "greed",
+                "source": "alternative.me",
+                "delta": 5,
+            },
             "news_sentiment": {
                 "overall_sentiment": "bullish",
                 "sentiment_score": 0.4,
@@ -444,8 +503,13 @@ class TestMarketContext:
                     "support_walls": [{"price": 49500, "size_x_avg": 8.2}],
                     "resistance_walls": [{"price": 50500, "size_x_avg": 6.1}],
                 },
-                "slippage_probe": {"size_quote": 50000, "buy_bps": 1.5, "sell_bps": 1.3,
-                                   "buy_fully_filled": True, "sell_fully_filled": True},
+                "slippage_probe": {
+                    "size_quote": 50000,
+                    "buy_bps": 1.5,
+                    "sell_bps": 1.3,
+                    "buy_fully_filled": True,
+                    "sell_fully_filled": True,
+                },
             },
         }
         text = format_market_context_text(ctx)
@@ -459,16 +523,23 @@ class TestMarketContext:
 # 8. KNOWLEDGE INDEXER — wired through save_prediction_evaluation flow
 # =============================================================================
 
+
 class TestKnowledgeIndexer:
     def test_index_evaluation_noop_when_store_unavailable(self, monkeypatch):
         import sys
+
         monkeypatch.setitem(sys.modules, "chromadb", None)
         from memory.vector_store import reset_vector_store
         from workflows.knowledge_indexer import index_evaluation
 
         reset_vector_store()
         rid = index_evaluation(
-            {"prediction_id": "p-1", "symbol": "BTC/USDT", "timeframe": "4h", "signal": {"signal": "BUY"}},
+            {
+                "prediction_id": "p-1",
+                "symbol": "BTC/USDT",
+                "timeframe": "4h",
+                "signal": {"signal": "BUY"},
+            },
             {"direction_correct": True, "pnl_pct": 1.0, "result_label": "win"},
         )
         assert rid is None  # graceful no-op
@@ -492,8 +563,14 @@ class TestKnowledgeIndexer:
                     "volume": {"price_vs_vwap": "above"},
                 },
             },
-            {"direction_correct": True, "tp1_hit": True, "tp2_hit": False, "sl_hit": False, "pnl_pct": 1.5,
-             "result_label": "win"},
+            {
+                "direction_correct": True,
+                "tp1_hit": True,
+                "tp2_hit": False,
+                "sl_hit": False,
+                "pnl_pct": 1.5,
+                "result_label": "win",
+            },
         )
         assert "signal=BUY" in text
         assert "outcome.dir_correct=True" in text

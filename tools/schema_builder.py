@@ -2,6 +2,7 @@
 Tool Schema Builder — Generates Anthropic tool_use schemas from Python functions.
 Compatible with both Anthropic native API and OpenAI-standard (GHO Gateway).
 """
+
 import inspect
 from typing import Any, get_type_hints
 
@@ -23,7 +24,7 @@ def build_tool_schema(fn) -> dict:
     """Convert a Python function into an Anthropic tool_use schema."""
     hints = get_type_hints(fn)
     doc = inspect.getdoc(fn) or ""
-    
+
     # Parse docstring for param descriptions
     param_docs = {}
     for line in doc.split("\n"):
@@ -31,15 +32,15 @@ def build_tool_schema(fn) -> dict:
             parts = line.split(":param")[1].split(":")
             if len(parts) >= 2:
                 param_docs[parts[0].strip()] = parts[1].strip()
-    
+
     properties = {}
     required = []
-    
+
     sig = inspect.signature(fn)
     for name, param in sig.parameters.items():
         if name in ("self", "cls"):
             continue
-        
+
         py_type = hints.get(name, Any)
         # Handle Optional types
         origin = getattr(py_type, "__origin__", None)
@@ -47,26 +48,19 @@ def build_tool_schema(fn) -> dict:
             args = getattr(py_type, "__args__", ())
             if type(None) in args:
                 py_type = args[0]
-        
+
         json_type = TYPE_MAP.get(py_type, "string")
-        
-        prop = {
-            "type": json_type,
-            "description": param_docs.get(name, f"Parameter {name}")
-        }
+
+        prop = {"type": json_type, "description": param_docs.get(name, f"Parameter {name}")}
         properties[name] = prop
-        
+
         if param.default is inspect.Parameter.empty:
             required.append(name)
-    
+
     return {
         "name": fn.__name__,
         "description": doc.split("\n")[0] if doc else fn.__name__,
-        "input_schema": {
-            "type": "object",
-            "properties": properties,
-            "required": required
-        }
+        "input_schema": {"type": "object", "properties": properties, "required": required},
     }
 
 
@@ -78,8 +72,8 @@ def build_tool_schema_openai(fn) -> dict:
         "function": {
             "name": anthropic_schema["name"],
             "description": anthropic_schema["description"],
-            "parameters": anthropic_schema["input_schema"]
-        }
+            "parameters": anthropic_schema["input_schema"],
+        },
     }
 
 

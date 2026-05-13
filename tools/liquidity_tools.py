@@ -7,6 +7,7 @@ tools return a structured "unavailable" response rather than raising.
 The "liquidity zones" output identifies large bid/ask clusters that act as
 support/resistance walls — a useful overlay on top of technical levels.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -50,6 +51,7 @@ def _clear_cache() -> None:
 # =============================================================================
 # ORDER BOOK FETCH
 # =============================================================================
+
 
 async def fetch_order_book(
     symbol: str,
@@ -142,6 +144,7 @@ async def fetch_order_book(
 # LIQUIDITY ZONES — detect large walls
 # =============================================================================
 
+
 def compute_liquidity_zones(order_book: dict, top_n: int = 5) -> dict:
     """
     Identify the largest bid/ask "walls" — clusters where size is significantly
@@ -206,6 +209,7 @@ def compute_liquidity_zones(order_book: dict, top_n: int = 5) -> dict:
 # SLIPPAGE ESTIMATOR
 # =============================================================================
 
+
 def estimate_slippage(order_book: dict, size_quote: float, side: str = "buy") -> dict:
     """
     Estimate average fill price and slippage in bps to execute `size_quote`
@@ -264,6 +268,7 @@ def estimate_slippage(order_book: dict, size_quote: float, side: str = "buy") ->
 # =============================================================================
 # UNIFIED SUMMARY (handy for SignalAgent context)
 # =============================================================================
+
 
 async def get_liquidity_snapshot(
     symbol: str,

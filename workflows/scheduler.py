@@ -25,6 +25,7 @@ Usage (from main.py):
     loop = SupervisorLoop()
     await loop.run()
 """
+
 import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -73,6 +74,7 @@ class SupervisorLoop:
         import os
 
         from config.settings import get_config
+
         self._config = get_config()
         self._shutdown = shutdown_event or asyncio.Event()
         self._scan_tasks: dict[str, asyncio.Task] = {}  # "symbol:tf" → task
@@ -160,9 +162,7 @@ class SupervisorLoop:
                 log.error("scan_pair.error", symbol=symbol, timeframe=tf, error=str(exc))
             # Interruptible sleep: wake early on shutdown
             try:
-                await asyncio.wait_for(
-                    self._shutdown.wait(), timeout=float(interval)
-                )
+                await asyncio.wait_for(self._shutdown.wait(), timeout=float(interval))
             except TimeoutError:
                 pass
 
@@ -217,7 +217,8 @@ class SupervisorLoop:
             "regime": result.get("market_regime") or result.get("regime"),
             "trend_direction": result.get("trend_direction"),
             "confluence_analysis": ", ".join(result.get("confluence_indicators") or [])
-                or result.get("confluence_analysis") or "",
+            or result.get("confluence_analysis")
+            or "",
             "confluence_indicators": result.get("confluence_indicators") or [],
             "divergent_indicators": result.get("divergent_indicators") or [],
             "model": config.llm.model,
@@ -240,6 +241,7 @@ class SupervisorLoop:
         ):
             try:
                 from tools.trading_tools import save_signal_notification
+
                 await save_signal_notification(
                     signal_json=result,
                     symbol=symbol,
@@ -247,7 +249,9 @@ class SupervisorLoop:
                     correlation_id=cid,
                 )
             except Exception as exc:
-                log.warning("scan.save_notification_failed", prediction_id=prediction_id, error=str(exc))
+                log.warning(
+                    "scan.save_notification_failed", prediction_id=prediction_id, error=str(exc)
+                )
 
         # Publish actionable signals to Telegram
         if (
@@ -309,7 +313,8 @@ class SupervisorLoop:
         now = datetime.now(UTC)
 
         matured = [
-            p for p in predictions
+            p
+            for p in predictions
             if p.get("evaluation_due_at") and _is_due(p["evaluation_due_at"], now)
         ]
 
@@ -341,6 +346,7 @@ class SupervisorLoop:
                 # Index the outcome into the RAG knowledge store (best-effort)
                 try:
                     from workflows.knowledge_indexer import index_evaluation
+
                     index_evaluation(prediction, evaluation)
                 except Exception as exc:
                     log.warning("evaluation_loop.knowledge_index_failed", error=str(exc))
@@ -349,6 +355,7 @@ class SupervisorLoop:
                 if self._config.telegram.publish_evaluations:
                     try:
                         from tools.notification_tools import TelegramPublisher
+
                         publisher = TelegramPublisher()
                         await publisher.publish_evaluation_summary(evaluation)
                     except Exception as exc:
@@ -392,7 +399,9 @@ class SupervisorLoop:
         supervisor = AdaptiveStrategySupervisor()
         # Run one cycle per representative timeframe (use first configured symbol + 4h)
         symbol = self._config.trading.symbols[0] if self._config.trading.symbols else "BTC/USDT"
-        timeframe = "4h" if "4h" in self._config.trading.timeframes else self._config.trading.timeframes[0]
+        timeframe = (
+            "4h" if "4h" in self._config.trading.timeframes else self._config.trading.timeframes[0]
+        )
 
         cid = str(uuid.uuid4())[:8]
         result = await supervisor.run_adaptation_cycle(
@@ -479,6 +488,7 @@ class SupervisorLoop:
 # HELPERS
 # =============================================================================
 
+
 def _resolve_risk_reward_ratio(signal_result: dict) -> float:
     """
     Resolve a normalized risk/reward ratio for gating + persistence.
@@ -514,12 +524,11 @@ def _resolve_risk_reward_ratio(signal_result: dict) -> float:
 
     return round(reward / risk, 4)
 
+
 def _eval_due_at(tf: str, config) -> str:
     """Compute the evaluation due timestamp based on timeframe horizon config."""
     horizon_candles = config.prediction.horizon_candles(tf)
-    tf_seconds = {
-        "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400
-    }
+    tf_seconds = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400}
     seconds = tf_seconds.get(tf, 3600) * horizon_candles
     due = datetime.now(UTC) + timedelta(seconds=seconds)
     return due.isoformat()

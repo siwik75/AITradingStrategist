@@ -13,6 +13,7 @@ The local backend is fully implemented and survives process restarts.
 Production backends (redis, dynamodb, postgres, s3) retain their stub structure
 for future implementation.
 """
+
 import json
 import os
 import uuid
@@ -27,6 +28,7 @@ log = structlog.get_logger()
 # =============================================================================
 # LOCAL FILE BACKEND
 # =============================================================================
+
 
 class _LocalFileBackend:
     """
@@ -183,9 +185,7 @@ class _LocalFileBackend:
         self._append_jsonl(self._trade_signals_path(), record)
 
     def read_trade_signals(self, days: int = 30) -> list[dict]:
-        return self._filter_recent_records(
-            self._read_jsonl(self._trade_signals_path()), days=days
-        )
+        return self._filter_recent_records(self._read_jsonl(self._trade_signals_path()), days=days)
 
     # Signal notifications
 
@@ -291,6 +291,7 @@ class _LocalFileBackend:
 # MEMORY STORE
 # =============================================================================
 
+
 class MemoryStore:
     """
     Abstract memory interface.
@@ -328,7 +329,8 @@ class MemoryStore:
         elif self.backend == "postgres":
             await self._save_postgres("trade_signals", record)
 
-        log.info("memory.trade_signal_saved",
+        log.info(
+            "memory.trade_signal_saved",
             agent=self.agent_id,
             signal=signal.get("signal", "N/A"),
             correlation_id=correlation_id,
@@ -386,9 +388,7 @@ class MemoryStore:
         notifications = self._file.read_signal_notifications(days=days)
         reviews = self._file.read_manual_trade_reviews(days=days)
         latest_review_by_signal = {
-            review.get("signal_id"): review
-            for review in reviews
-            if review.get("signal_id")
+            review.get("signal_id"): review for review in reviews if review.get("signal_id")
         }
 
         merged = []
@@ -503,7 +503,8 @@ class MemoryStore:
                 data=record,
             )
 
-        log.info("memory.conversation_saved",
+        log.info(
+            "memory.conversation_saved",
             agent=self.agent_id,
             session_id=session_id,
         )
@@ -524,7 +525,8 @@ class MemoryStore:
         if self.backend == "local":
             self._file.append_assessment(record)
 
-        log.info("memory.assessment_saved",
+        log.info(
+            "memory.assessment_saved",
             agent=self.agent_id,
             decision=assessment.get("decision", "N/A"),
             correlation_id=correlation_id,
@@ -570,9 +572,7 @@ class MemoryStore:
             return self._file.update_prediction(prediction_id, updates)
         return False
 
-    async def save_prediction_evaluation(
-        self, prediction_id: str, evaluation: dict
-    ) -> dict:
+    async def save_prediction_evaluation(self, prediction_id: str, evaluation: dict) -> dict:
         """Persist a scored evaluation result for a matured prediction."""
         record = {
             "agent_id": self.agent_id,
@@ -720,6 +720,7 @@ def get_memory_store() -> MemoryStore:
     global _store
     if _store is None:
         from config.settings import get_config
+
         config = get_config()
         backend = os.getenv("MEMORY_BACKEND", "local")
         _store = MemoryStore(agent_id=config.agent_id, backend=backend)

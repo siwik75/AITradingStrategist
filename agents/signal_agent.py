@@ -7,6 +7,7 @@ Generates structured trading signals with:
 - A "lessons" block summarising prior performance (KPIs, failure modes)
 - On-demand RAG retrieval of similar past setups (via tool call)
 """
+
 import structlog
 
 from agents.base import AgentConfig, BaseAgent

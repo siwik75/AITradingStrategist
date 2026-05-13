@@ -8,6 +8,7 @@ Supports:
 Implements the ReAct loop with tool_use, structured logging,
 correlation_id tracking, and graceful error handling.
 """
+
 import asyncio
 import json
 import uuid
@@ -25,6 +26,7 @@ log = structlog.get_logger()
 @dataclass
 class AgentConfig:
     """Agent-level configuration."""
+
     name: str = "base_agent"
     model: str = ""  # empty = use global config
     max_tokens: int = 4096
@@ -113,15 +115,16 @@ class BaseAgent:
     ) -> str:
         """
         Execute the agent's ReAct loop.
-        
+
         :param task: The task/prompt to execute
         :param context: Additional context dict
         :param correlation_id: Request correlation ID for tracing
         :returns: Final text response from the agent
         """
         cid = correlation_id or str(uuid.uuid4())[:8]
-        
-        log.info("agent.run.start",
+
+        log.info(
+            "agent.run.start",
             agent=self.agent_config.name,
             model=self.model,
             mode=self._mode,
@@ -175,14 +178,15 @@ class BaseAgent:
     async def _run_anthropic(self, task: str, context: dict, cid: str) -> str:
         """ReAct loop using Anthropic native API."""
         messages = [{"role": "user", "content": task}]
-        
+
         for iteration in range(self.agent_config.max_iterations):
-            log.info("agent.iteration",
+            log.info(
+                "agent.iteration",
                 agent=self.agent_config.name,
                 iteration=iteration,
                 correlation_id=cid,
             )
-            
+
             try:
                 response = self.client.messages.create(
                     model=self.model,
@@ -193,7 +197,8 @@ class BaseAgent:
                     messages=messages,
                 )
             except Exception as e:
-                log.error("agent.llm_error",
+                log.error(
+                    "agent.llm_error",
                     agent=self.agent_config.name,
                     error=str(e),
                     correlation_id=cid,
@@ -203,7 +208,8 @@ class BaseAgent:
             # Check for final response
             if response.stop_reason == "end_turn":
                 result = self._extract_text_anthropic(response)
-                log.info("agent.run.complete",
+                log.info(
+                    "agent.run.complete",
                     agent=self.agent_config.name,
                     iterations=iteration + 1,
                     correlation_id=cid,
@@ -216,7 +222,8 @@ class BaseAgent:
                 messages.append({"role": "assistant", "content": response.content})
                 messages.append({"role": "user", "content": tool_results})
 
-        log.warning("agent.max_iterations_reached",
+        log.warning(
+            "agent.max_iterations_reached",
             agent=self.agent_config.name,
             correlation_id=cid,
         )
@@ -229,7 +236,8 @@ class BaseAgent:
             if block.type == "tool_use":
                 fn = self._tool_map.get(block.name)
                 if fn:
-                    log.info("agent.tool_call",
+                    log.info(
+                        "agent.tool_call",
                         agent=self.agent_config.name,
                         tool=block.name,
                         inputs=block.input,
@@ -240,31 +248,33 @@ class BaseAgent:
                             result = await fn(**block.input)
                         else:
                             result = fn(**block.input)
-                        
-                        results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": json.dumps(result, default=str),
-                        })
+
+                        results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": json.dumps(result, default=str),
+                            }
+                        )
                     except Exception as e:
-                        log.error("agent.tool_error",
+                        log.error(
+                            "agent.tool_error",
                             tool=block.name,
                             error=str(e),
                             correlation_id=cid,
                         )
-                        results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": json.dumps({"error": str(e)}),
-                            "is_error": True,
-                        })
+                        results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": json.dumps({"error": str(e)}),
+                                "is_error": True,
+                            }
+                        )
         return results
 
     def _extract_text_anthropic(self, response) -> str:
-        return next(
-            (b.text for b in response.content if hasattr(b, "text")),
-            ""
-        )
+        return next((b.text for b in response.content if hasattr(b, "text")), "")
 
     # =========================================================================
     # OPENAI-COMPATIBLE MODE (GHO Gateway)
@@ -276,15 +286,16 @@ class BaseAgent:
             {"role": "system", "content": self.agent_config.system_prompt},
             {"role": "user", "content": task},
         ]
-        
+
         for iteration in range(self.agent_config.max_iterations):
-            log.info("agent.iteration",
+            log.info(
+                "agent.iteration",
                 agent=self.agent_config.name,
                 iteration=iteration,
                 mode="openai",
                 correlation_id=cid,
             )
-            
+
             kwargs = {
                 "model": self.model,
                 "messages": messages,
@@ -293,33 +304,35 @@ class BaseAgent:
             }
             if self.tools:
                 kwargs["tools"] = self._tool_schemas
-            
+
             try:
                 response = self.client.chat.completions.create(**kwargs)
             except Exception as e:
                 log.error("agent.llm_error", error=str(e), correlation_id=cid)
                 raise
-            
+
             choice = response.choices[0]
-            
+
             # Final response
             if choice.finish_reason == "stop":
-                log.info("agent.run.complete",
+                log.info(
+                    "agent.run.complete",
                     agent=self.agent_config.name,
                     iterations=iteration + 1,
                     correlation_id=cid,
                 )
                 return choice.message.content or ""
-            
+
             # Tool calls
             if choice.finish_reason == "tool_calls" and choice.message.tool_calls:
                 messages.append(choice.message)
-                
+
                 for tc in choice.message.tool_calls:
                     fn = self._tool_map.get(tc.function.name)
                     if fn:
                         args = json.loads(tc.function.arguments)
-                        log.info("agent.tool_call",
+                        log.info(
+                            "agent.tool_call",
                             tool=tc.function.name,
                             inputs=args,
                             correlation_id=cid,
@@ -329,16 +342,20 @@ class BaseAgent:
                                 result = await fn(**args)
                             else:
                                 result = fn(**args)
-                            messages.append({
-                                "role": "tool",
-                                "tool_call_id": tc.id,
-                                "content": json.dumps(result, default=str),
-                            })
+                            messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tc.id,
+                                    "content": json.dumps(result, default=str),
+                                }
+                            )
                         except Exception as e:
-                            messages.append({
-                                "role": "tool",
-                                "tool_call_id": tc.id,
-                                "content": json.dumps({"error": str(e)}),
-                            })
-        
+                            messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tc.id,
+                                    "content": json.dumps({"error": str(e)}),
+                                }
+                            )
+
         return choice.message.content or ""

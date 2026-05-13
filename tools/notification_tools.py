@@ -17,6 +17,7 @@ Required env vars:
 Optional:
     TELEGRAM_THREAD_ID  — message thread id for forum channels
 """
+
 import json
 import re
 import uuid
@@ -39,6 +40,7 @@ MSG_DEGRADATION_ALERT = "degradation_alert"
 # TELEGRAM PUBLISHER
 # =============================================================================
 
+
 class TelegramPublisher:
     """
     Publishes structured messages to a Telegram channel.
@@ -49,6 +51,7 @@ class TelegramPublisher:
 
     def __init__(self):
         from config.settings import get_config
+
         cfg = get_config()
         self._token = cfg.telegram.bot_token
         self._channel = cfg.telegram.channel_id
@@ -91,7 +94,10 @@ class TelegramPublisher:
             message_type=MSG_EVALUATION,
             reference_id=prediction_id,
             text=text,
-            metadata={"symbol": evaluation.get("symbol"), "outcome_score": evaluation.get("outcome_score")},
+            metadata={
+                "symbol": evaluation.get("symbol"),
+                "outcome_score": evaluation.get("outcome_score"),
+            },
         )
 
     async def publish_strategy_update(self, version: dict) -> dict:
@@ -140,6 +146,7 @@ class TelegramPublisher:
     ) -> dict:
         """Send a message and persist the delivery record."""
         from memory.store import get_memory_store
+
         store = get_memory_store()
 
         # Idempotency guard: skip if already delivered successfully
@@ -289,6 +296,7 @@ class TelegramPublisher:
 # MESSAGE FORMATTERS
 # =============================================================================
 
+
 def _format_signal_message(prediction: dict) -> str:
     signal = _html_safe(prediction.get("signal", "?"))
     symbol = _html_safe(prediction.get("symbol", "?"))
@@ -428,9 +436,11 @@ def _plain_text_fallback(text: str) -> str:
 # CONVENIENCE FUNCTIONS (for use as agent tools if needed)
 # =============================================================================
 
+
 async def get_failed_deliveries(limit: int = 20) -> list[dict]:
     """Return recent failed Telegram deliveries for replay."""
     from memory.store import get_memory_store
+
     store = get_memory_store()
     deliveries = await store.get_telegram_deliveries()
     failed = [d for d in deliveries if not d.get("success")]

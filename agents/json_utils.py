@@ -1,6 +1,7 @@
 """
 Helpers for extracting structured JSON payloads from LLM text responses.
 """
+
 import json
 import re
 
@@ -75,6 +76,6 @@ def _extract_first_json_object(text: str) -> str | None:
         elif char == "}":
             depth -= 1
             if depth == 0:
-                return text[start:index + 1]
+                return text[start : index + 1]
 
     return None

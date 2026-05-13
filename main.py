@@ -12,6 +12,7 @@ Provides:
 - Graceful shutdown via SIGTERM handling
 - Structured JSON logging
 """
+
 # ruff: noqa: E402, I001
 
 # Load .env FIRST — before any project imports so env vars are available
@@ -48,10 +49,10 @@ log = structlog.get_logger()
 
 from config.settings import get_config
 
-
 # =============================================================================
 # CLI MODE
 # =============================================================================
+
 
 async def run_cli(args):
     """Run in CLI mode — single analysis or full cycle."""
@@ -67,7 +68,8 @@ async def run_cli(args):
 
     cid = str(uuid.uuid4())[:8]
 
-    log.info("cli.start",
+    log.info(
+        "cli.start",
         mode=args.mode,
         symbol=args.symbol,
         timeframe=args.timeframe,
@@ -135,6 +137,7 @@ async def run_cli(args):
 
     elif args.mode == "assess":
         from agents.self_assessment import SelfAssessmentAgent
+
         agent = SelfAssessmentAgent()
         result = await agent.assess_and_evolve(
             symbol=args.symbol,
@@ -153,23 +156,25 @@ async def run_cli(args):
         workflow = build_trading_workflow()
         if workflow:
             # LangGraph mode
-            result = await workflow.ainvoke({
-                "symbol": args.symbol,
-                "timeframe": args.timeframe,
-                "backtest_days": args.days,
-                "correlation_id": cid,
-                "indicators": None,
-                "signal": None,
-                "backtest_current": None,
-                "backtest_proposed": None,
-                "assessment": None,
-                "current_params": None,
-                "proposed_params": None,
-                "final_params": None,
-                "iteration": 0,
-                "errors": [],
-                "completed_steps": [],
-            })
+            result = await workflow.ainvoke(
+                {
+                    "symbol": args.symbol,
+                    "timeframe": args.timeframe,
+                    "backtest_days": args.days,
+                    "correlation_id": cid,
+                    "indicators": None,
+                    "signal": None,
+                    "backtest_current": None,
+                    "backtest_proposed": None,
+                    "assessment": None,
+                    "current_params": None,
+                    "proposed_params": None,
+                    "final_params": None,
+                    "iteration": 0,
+                    "errors": [],
+                    "completed_steps": [],
+                }
+            )
         else:
             # Sequential fallback
             result = await run_workflow_sequential(
@@ -246,12 +251,14 @@ async def run_cli(args):
 
     elif args.mode == "kpis":
         from agents.strategy_supervisor import AdaptiveStrategySupervisor
+
         supervisor = AdaptiveStrategySupervisor()
         result = await supervisor.get_kpi_summary()
         print(json.dumps(result, indent=2, default=str))
 
     elif args.mode == "adapt":
         from agents.strategy_supervisor import AdaptiveStrategySupervisor
+
         supervisor = AdaptiveStrategySupervisor()
         result = await supervisor.run_adaptation_cycle(
             symbol=args.symbol,
@@ -262,6 +269,7 @@ async def run_cli(args):
 
     elif args.mode == "predictions":
         from memory.store import get_memory_store
+
         store = get_memory_store()
         result = await store.get_predictions(
             limit=args.limit,
@@ -273,6 +281,7 @@ async def run_cli(args):
 # =============================================================================
 # SERVER MODE (FastAPI)
 # =============================================================================
+
 
 def create_app():
     """FastAPI application factory. Separated for testability."""
@@ -310,6 +319,7 @@ def create_app():
         if cfg.infra.redis_url and cfg.infra.redis_url != default_redis:
             try:
                 import redis.asyncio as aioredis
+
                 r = aioredis.from_url(cfg.infra.redis_url, socket_connect_timeout=2)
                 await r.ping()
                 await r.aclose()
@@ -354,6 +364,7 @@ def create_app():
 
         from agents.signal_agent import SignalAgent
         from tools.trading_tools import save_signal_notification
+
         agent = SignalAgent()
         result = await agent.analyze(
             symbol=body.get("symbol", "BTC/USDT"),
@@ -386,6 +397,7 @@ def create_app():
         cid = request.headers.get("X-Correlation-ID", str(uuid.uuid4())[:8])
 
         from agents.self_assessment import SelfAssessmentAgent
+
         agent = SelfAssessmentAgent()
         result = await agent.assess_and_evolve(
             symbol=body.get("symbol", "BTC/USDT"),
@@ -424,6 +436,7 @@ def create_app():
     async def predictions(limit: int = 50, status: str = "all"):
         """List persisted predictions with optional lifecycle status filter."""
         from memory.store import get_memory_store
+
         store = get_memory_store()
         return await store.get_predictions(limit=limit, status=status)
 
@@ -431,6 +444,7 @@ def create_app():
     async def kpis():
         """Return rolling quality KPIs across short/medium/long windows."""
         from agents.strategy_supervisor import AdaptiveStrategySupervisor
+
         supervisor = AdaptiveStrategySupervisor()
         return await supervisor.get_kpi_summary()
 
@@ -441,6 +455,7 @@ def create_app():
         cid = request.headers.get("X-Correlation-ID", str(uuid.uuid4())[:8])
 
         from agents.strategy_supervisor import AdaptiveStrategySupervisor
+
         supervisor = AdaptiveStrategySupervisor()
         return await supervisor.run_adaptation_cycle(
             symbol=body.get("symbol", "BTC/USDT"),
@@ -452,6 +467,7 @@ def create_app():
     async def strategy_versions(limit: int = 20):
         """List strategy version history for audit and rollback inspection."""
         from memory.store import get_memory_store
+
         store = get_memory_store()
         versions = await store.get_strategy_versions(limit=limit)
         versions.reverse()
@@ -461,6 +477,7 @@ def create_app():
     async def supervisor_events(limit: int = 50):
         """List supervisor decision events."""
         from memory.store import get_memory_store
+
         store = get_memory_store()
         events = await store.get_supervisor_events(limit=limit)
         events.reverse()
@@ -497,6 +514,7 @@ def run_supervisor():
             loop.add_signal_handler(sig, _request_shutdown)
 
         from workflows.scheduler import SupervisorLoop
+
         supervisor = SupervisorLoop(shutdown_event=shutdown_event)
         log.info(
             "supervisor.run",
@@ -533,6 +551,7 @@ def run_server():
         log.info("server.start", port=config.infra.port, environment=config.environment)
         # Start the autonomous scan/evaluate/adapt/publish loops alongside the HTTP server
         from workflows.scheduler import SupervisorLoop
+
         supervisor = SupervisorLoop(shutdown_event=shutdown_event)
         supervisor_task = asyncio.create_task(supervisor.run(), name="supervisor_loop")
         log.info(
@@ -551,6 +570,7 @@ def run_server():
 
     # Rebuild app with lifespan attached
     from fastapi import FastAPI
+
     app_with_lifespan = FastAPI(
         title="Trading Intelligence Agent",
         version="1.0.0",
@@ -558,9 +578,7 @@ def run_server():
         lifespan=lifespan,
     )
     # Mount all routes from the factory app
-    app_with_lifespan.routes.extend(
-        r for r in app.routes if r not in app_with_lifespan.routes
-    )
+    app_with_lifespan.routes.extend(r for r in app.routes if r not in app_with_lifespan.routes)
 
     uv_config = uvicorn.Config(
         app_with_lifespan,
@@ -586,14 +604,24 @@ def run_server():
 # ENTRY POINT
 # =============================================================================
 
+
 def main():
     parser = argparse.ArgumentParser(description="Trading Intelligence Agent")
     parser.add_argument(
         "--mode",
         choices=[
-            "analysis", "backtest", "candles", "assess", "full",
-            "signals", "report", "server", "supervisor",
-            "kpis", "adapt", "predictions",
+            "analysis",
+            "backtest",
+            "candles",
+            "assess",
+            "full",
+            "signals",
+            "report",
+            "server",
+            "supervisor",
+            "kpis",
+            "adapt",
+            "predictions",
         ],
         default="analysis",
         help="Operation mode",
@@ -607,13 +635,23 @@ def main():
         default="default",
         help="Market data source for candles mode: default, auto, ccxt, yfinance, synthetic",
     )
-    parser.add_argument("--status", default="all", help="signals mode filter: all, pending, reported")
+    parser.add_argument(
+        "--status", default="all", help="signals mode filter: all, pending, reported"
+    )
     parser.add_argument("--signal-id", default="", help="Signal identifier for report mode")
-    parser.add_argument("--result", default="", help="Manual trade result: won, lost, breakeven, skipped, cancelled")
+    parser.add_argument(
+        "--result", default="", help="Manual trade result: won, lost, breakeven, skipped, cancelled"
+    )
     parser.add_argument("--notes", default="", help="Free-form notes for report mode")
-    parser.add_argument("--pnl-pct", type=float, default=None, help="Realized PnL percentage for report mode")
-    parser.add_argument("--execution-price", type=float, default=None, help="Manual execution price for report mode")
-    parser.add_argument("--exit-price", type=float, default=None, help="Manual exit price for report mode")
+    parser.add_argument(
+        "--pnl-pct", type=float, default=None, help="Realized PnL percentage for report mode"
+    )
+    parser.add_argument(
+        "--execution-price", type=float, default=None, help="Manual execution price for report mode"
+    )
+    parser.add_argument(
+        "--exit-price", type=float, default=None, help="Manual exit price for report mode"
+    )
 
     args = parser.parse_args()
 

@@ -10,6 +10,7 @@ Designed for two trigger points:
 
 The indexer is idempotent: re-indexing the same prediction_id upserts.
 """
+
 from __future__ import annotations
 
 import structlog

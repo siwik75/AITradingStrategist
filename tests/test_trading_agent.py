@@ -10,6 +10,7 @@ Demonstrates testing patterns for agentic systems:
 6. Persistence tests
 7. FastAPI route tests
 """
+
 # ruff: noqa: I001
 
 import json
@@ -38,6 +39,7 @@ def isolated_test_env(monkeypatch):
 # =============================================================================
 # TOOL UNIT TESTS
 # =============================================================================
+
 
 class TestTradingTools:
     """Test trading tools with synthetic data."""
@@ -140,7 +142,9 @@ class TestOhlcvDataSources:
                 }
             ],
         }
-        with patch("tools.trading_tools._fetch_ccxt", new=AsyncMock(return_value=mock_payload)) as fetch:
+        with patch(
+            "tools.trading_tools._fetch_ccxt", new=AsyncMock(return_value=mock_payload)
+        ) as fetch:
             from tools.trading_tools import get_ohlcv
 
             result = await get_ohlcv("BTC/USDT", "1h", limit=1, source="auto")
@@ -275,6 +279,7 @@ class TestCandlesCliMode:
 # BACKTEST TESTS
 # =============================================================================
 
+
 class TestBacktest:
     """Test backtesting engine."""
 
@@ -286,18 +291,20 @@ class TestBacktest:
         result = await run_backtest(
             symbol="BTC/USDT",
             timeframe="4h",
-            strategy_params=json.dumps({
-                "ema_fast": 9,
-                "ema_slow": 21,
-                "rsi_oversold": 30,
-                "rsi_overbought": 70,
-                "atr_sl_multiplier": 1.5,
-                "atr_tp1_multiplier": 2.0,
-                "atr_tp2_multiplier": 3.5,
-                "min_adx": 15,
-                "use_macd_filter": True,
-                "use_volume_filter": False,
-            }),
+            strategy_params=json.dumps(
+                {
+                    "ema_fast": 9,
+                    "ema_slow": 21,
+                    "rsi_oversold": 30,
+                    "rsi_overbought": 70,
+                    "atr_sl_multiplier": 1.5,
+                    "atr_tp1_multiplier": 2.0,
+                    "atr_tp2_multiplier": 3.5,
+                    "min_adx": 15,
+                    "use_macd_filter": True,
+                    "use_volume_filter": False,
+                }
+            ),
             days=30,
         )
 
@@ -314,13 +321,15 @@ class TestBacktest:
         from tools.trading_tools import run_backtest
 
         result_a = await run_backtest(
-            symbol="BTC/USDT", timeframe="4h",
+            symbol="BTC/USDT",
+            timeframe="4h",
             strategy_params=json.dumps({"ema_fast": 9, "ema_slow": 21, "min_adx": 15}),
             days=30,
         )
 
         result_b = await run_backtest(
-            symbol="BTC/USDT", timeframe="4h",
+            symbol="BTC/USDT",
+            timeframe="4h",
             strategy_params=json.dumps({"ema_fast": 5, "ema_slow": 13, "min_adx": 25}),
             days=30,
         )
@@ -335,7 +344,8 @@ class TestBacktest:
         from tools.trading_tools import run_backtest
 
         result = await run_backtest(
-            symbol="BTC/USDT", timeframe="4h",
+            symbol="BTC/USDT",
+            timeframe="4h",
             strategy_params=json.dumps({"min_adx": 10, "use_volume_filter": False}),
             days=60,
         )
@@ -349,6 +359,7 @@ class TestBacktest:
 # =============================================================================
 # SCHEMA BUILDER TESTS
 # =============================================================================
+
 
 class TestSchemaBuilder:
     """Test automatic schema generation from Python functions."""
@@ -394,6 +405,7 @@ class TestSchemaBuilder:
 # INTEGRATION TESTS (mocked LLM)
 # =============================================================================
 
+
 class TestAgentIntegration:
     """Integration tests with mocked LLM responses."""
 
@@ -416,11 +428,13 @@ class TestAgentIntegration:
         mock_response.content = [
             MagicMock(
                 type="text",
-                text=json.dumps({
-                    "signal": "HOLD",
-                    "confidence": 45,
-                    "reasoning": "Insufficient confluence",
-                })
+                text=json.dumps(
+                    {
+                        "signal": "HOLD",
+                        "confidence": 45,
+                        "reasoning": "Insufficient confluence",
+                    }
+                ),
             )
         ]
 
@@ -430,6 +444,7 @@ class TestAgentIntegration:
                 instance.messages.create.return_value = mock_response
 
                 from agents.signal_agent import SignalAgent
+
                 agent = SignalAgent()
                 agent.client = instance
 
@@ -523,7 +538,7 @@ class TestLlmSelectionAndFallback:
             openai_response.choices = [
                 MagicMock(
                     finish_reason="stop",
-                    message=MagicMock(content='{"signal":"HOLD","confidence":10}')
+                    message=MagicMock(content='{"signal":"HOLD","confidence":10}'),
                 )
             ]
             openai_instance = MagicMock()
@@ -540,12 +555,16 @@ class TestLlmSelectionAndFallback:
                     assert agent.model == "gpt-5-mini"
                     assert "HOLD" in result
                     openai_instance.chat.completions.create.assert_called_once()
-                    assert openai_instance.chat.completions.create.call_args.kwargs["model"] == "gpt-5-mini"
+                    assert (
+                        openai_instance.chat.completions.create.call_args.kwargs["model"]
+                        == "gpt-5-mini"
+                    )
 
 
 # =============================================================================
 # CONFIG TESTS
 # =============================================================================
+
 
 class TestConfig:
     """Test configuration loading."""
@@ -587,11 +606,13 @@ class TestConfig:
 # CONFIG VALIDATION TESTS
 # =============================================================================
 
+
 class TestConfigValidation:
     """Test config.validate() raises actionable errors."""
 
     def _make_config(self, api_key="sk-ant-test-key", max_risk_pct=1.0, port=8080):
         from config.settings import AppConfig
+
         config = AppConfig()
         config.llm.anthropic_api_key = api_key
         config.llm.gateway_api_key = ""
@@ -633,12 +654,14 @@ class TestConfigValidation:
 # PERSISTENCE TESTS
 # =============================================================================
 
+
 class TestPersistence:
     """Test that strategy params and trade history survive store re-instantiation."""
 
     @pytest.fixture(autouse=True)
     def reset_store(self):
         from memory.store import reset_memory_store
+
         reset_memory_store()
         yield
         reset_memory_store()
@@ -862,6 +885,7 @@ class TestAdaptiveSupervisor:
 # SCHEDULER HELPER TESTS
 # =============================================================================
 
+
 class TestSchedulerHelpers:
     """Verify scan-time normalization used for prediction persistence and Telegram gating."""
 
@@ -896,6 +920,7 @@ class TestSchedulerHelpers:
 # =============================================================================
 # NOTIFICATION FORMATTER TESTS
 # =============================================================================
+
 
 class TestNotificationFormatters:
     """Verify Telegram HTML formatting stays valid for dynamic content."""
@@ -934,6 +959,7 @@ class TestNotificationFormatters:
 # BACKTEST PARTIAL EXIT TESTS
 # =============================================================================
 
+
 class TestBacktestPartialExit:
     """Verify the two-phase TP1 partial exit model."""
 
@@ -943,7 +969,8 @@ class TestBacktestPartialExit:
         from tools.trading_tools import run_backtest
 
         result = await run_backtest(
-            symbol="BTC/USDT", timeframe="4h",
+            symbol="BTC/USDT",
+            timeframe="4h",
             strategy_params=json.dumps({"min_adx": 10, "use_volume_filter": False}),
             days=60,
         )
@@ -958,13 +985,16 @@ class TestBacktestPartialExit:
         from tools.trading_tools import run_backtest
 
         result = await run_backtest(
-            symbol="BTC/USDT", timeframe="4h",
-            strategy_params=json.dumps({
-                "min_adx": 10,
-                "use_volume_filter": False,
-                "atr_tp1_multiplier": 2.0,
-                "atr_tp2_multiplier": 3.5,
-            }),
+            symbol="BTC/USDT",
+            timeframe="4h",
+            strategy_params=json.dumps(
+                {
+                    "min_adx": 10,
+                    "use_volume_filter": False,
+                    "atr_tp1_multiplier": 2.0,
+                    "atr_tp2_multiplier": 3.5,
+                }
+            ),
             days=60,
         )
 
@@ -975,14 +1005,15 @@ class TestBacktestPartialExit:
         if tp1_trades and tp2_trades:
             avg_tp1 = sum(t["pnl_pct"] for t in tp1_trades) / len(tp1_trades)
             avg_tp2 = sum(t["pnl_pct"] for t in tp2_trades) / len(tp2_trades)
-            assert avg_tp2 > avg_tp1, (
-                f"Expected TP2 avg pnl ({avg_tp2:.2f}) > TP1 avg pnl ({avg_tp1:.2f})"
-            )
+            assert (
+                avg_tp2 > avg_tp1
+            ), f"Expected TP2 avg pnl ({avg_tp2:.2f}) > TP1 avg pnl ({avg_tp1:.2f})"
 
 
 # =============================================================================
 # FASTAPI ROUTE TESTS
 # =============================================================================
+
 
 class TestFastAPIRoutes:
     """Test FastAPI HTTP endpoints using TestClient."""
@@ -1009,6 +1040,7 @@ class TestFastAPIRoutes:
         with patch.dict(os.environ, {"LLM_API_KEY": "", "ANTHROPIC_API_KEY": ""}):
             # Reset config singleton so it re-reads env
             from config.settings import reset_config
+
             reset_config()
             resp = client.get("/ready")
             assert resp.status_code == 503
@@ -1018,11 +1050,15 @@ class TestFastAPIRoutes:
 
     def test_ready_returns_200_when_api_key_set(self, client, tmp_path):
         """GET /ready with a valid API key and writable storage returns 200."""
-        with patch.dict(os.environ, {
-            "ANTHROPIC_API_KEY": "sk-ant-test-key",
-            "TRADING_AGENT_DATA_DIR": str(tmp_path),
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ANTHROPIC_API_KEY": "sk-ant-test-key",
+                "TRADING_AGENT_DATA_DIR": str(tmp_path),
+            },
+        ):
             from config.settings import reset_config
+
             reset_config()
             resp = client.get("/ready")
             assert resp.status_code == 200
