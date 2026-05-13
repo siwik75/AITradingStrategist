@@ -20,8 +20,7 @@ Safety constraints:
   - never promote without a strategy_versions audit trail entry
 """
 import uuid
-from datetime import UTC, datetime, timedelta
-from typing import Any
+from datetime import UTC, datetime
 
 import structlog
 
@@ -412,8 +411,9 @@ class AdaptiveStrategySupervisor:
 
         AND does not significantly worsen max_drawdown_pct (not > 15%).
         """
-        from tools.trading_tools import run_backtest
         import json as _json
+
+        from tools.trading_tools import run_backtest
 
         days = self._config.backtest.lookback_days
 

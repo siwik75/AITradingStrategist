@@ -16,7 +16,7 @@ Evaluation model:
   - confidence_calibration_bucket — high / medium / low
 """
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -101,9 +101,9 @@ async def evaluate_prediction(
 
     if signal in ("BUY", "SELL") and tp1 is not None and sl is not None:
         for candle in future_candles:
-            h, l = candle["high"], candle["low"]
+            h, lo = candle["high"], candle["low"]
             if is_long:
-                if not sl_reached_first and l <= sl:
+                if not sl_reached_first and lo <= sl:
                     sl_reached_first = True
                     break
                 if tp1 and h >= tp1:
@@ -115,9 +115,9 @@ async def evaluate_prediction(
                 if not sl_reached_first and h >= sl:
                     sl_reached_first = True
                     break
-                if tp1 and l <= tp1:
+                if tp1 and lo <= tp1:
                     tp1_reached = True
-                if tp1_reached and tp2 and l <= tp2:
+                if tp1_reached and tp2 and lo <= tp2:
                     tp2_reached = True
                     break
 

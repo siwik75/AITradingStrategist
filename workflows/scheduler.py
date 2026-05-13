@@ -70,8 +70,9 @@ class SupervisorLoop:
     """
 
     def __init__(self, shutdown_event: asyncio.Event | None = None):
-        from config.settings import get_config
         import os
+
+        from config.settings import get_config
         self._config = get_config()
         self._shutdown = shutdown_event or asyncio.Event()
         self._scan_tasks: dict[str, asyncio.Task] = {}  # "symbol:tf" → task
@@ -162,7 +163,7 @@ class SupervisorLoop:
                 await asyncio.wait_for(
                     self._shutdown.wait(), timeout=float(interval)
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
     async def _run_single_scan(self, symbol: str, tf: str) -> dict | None:
@@ -213,8 +214,12 @@ class SupervisorLoop:
             "take_profit_1": result.get("take_profit_1"),
             "take_profit_2": result.get("take_profit_2"),
             "risk_reward_ratio": rr,
-            "regime": result.get("regime"),
-            "confluence_analysis": result.get("confluence_analysis"),
+            "regime": result.get("market_regime") or result.get("regime"),
+            "trend_direction": result.get("trend_direction"),
+            "confluence_analysis": ", ".join(result.get("confluence_indicators") or [])
+                or result.get("confluence_analysis") or "",
+            "confluence_indicators": result.get("confluence_indicators") or [],
+            "divergent_indicators": result.get("divergent_indicators") or [],
             "model": config.llm.model,
             "correlation_id": cid,
             "evaluation_due_at": eval_due,
@@ -290,7 +295,7 @@ class SupervisorLoop:
                 log.error("evaluation_loop.error", error=str(exc))
             try:
                 await asyncio.wait_for(self._shutdown.wait(), timeout=float(check_interval))
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
     async def _run_evaluations(self) -> None:
@@ -378,7 +383,7 @@ class SupervisorLoop:
                 log.debug("adaptation_loop.disabled")
             try:
                 await asyncio.wait_for(self._shutdown.wait(), timeout=float(interval_s))
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
     async def _run_adaptation(self) -> None:
@@ -420,12 +425,12 @@ class SupervisorLoop:
                 log.error("publication_retry_loop.error", error=str(exc))
             try:
                 await asyncio.wait_for(self._shutdown.wait(), timeout=float(retry_interval))
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
     async def _retry_failed_deliveries(self) -> None:
-        from tools.notification_tools import get_failed_deliveries, TelegramPublisher
         from memory.store import get_memory_store
+        from tools.notification_tools import TelegramPublisher, get_failed_deliveries
 
         failed = await get_failed_deliveries(limit=10)
         if not failed:

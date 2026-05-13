@@ -531,9 +531,23 @@ def run_server():
     @asynccontextmanager
     async def lifespan(application):
         log.info("server.start", port=config.infra.port, environment=config.environment)
+        # Start the autonomous scan/evaluate/adapt/publish loops alongside the HTTP server
+        from workflows.scheduler import SupervisorLoop
+        supervisor = SupervisorLoop(shutdown_event=shutdown_event)
+        supervisor_task = asyncio.create_task(supervisor.run(), name="supervisor_loop")
+        log.info(
+            "supervisor.started",
+            symbols=config.trading.symbols,
+            timeframes=config.trading.timeframes,
+        )
         yield
         log.info("server.shutdown_begin")
         shutdown_event.set()
+        supervisor_task.cancel()
+        try:
+            await supervisor_task
+        except asyncio.CancelledError:
+            pass
 
     # Rebuild app with lifespan attached
     from fastapi import FastAPI

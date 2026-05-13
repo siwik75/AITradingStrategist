@@ -545,7 +545,7 @@ def _compute_vwap_block(
                      'between_1s_2s_lower' | 'below_2s').
     """
     typical_price = (df["high"] + df["low"] + df["close"]) / 3.0
-    vol = df["volume"].replace(0, np.nan)
+    df["volume"].replace(0, np.nan)
     close = df["close"]
 
     # ----- Session-anchored VWAP (resets each UTC day) -----

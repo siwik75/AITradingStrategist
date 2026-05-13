@@ -44,7 +44,6 @@ Claude Code (project-level .claude/settings.json):
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import sys
 from pathlib import Path
@@ -53,10 +52,11 @@ from pathlib import Path
 _project_root = Path(__file__).parent
 sys.path.insert(0, str(_project_root))
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # noqa: E402
+
 load_dotenv(_project_root / ".env")
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP  # noqa: E402
 
 mcp = FastMCP(
     name="trading-intelligence-agent",
@@ -101,8 +101,9 @@ async def analyze_signal(
     :param symbol: Trading pair e.g. BTC/USDT, ETH/USDT, SOL/USDT
     :param timeframe: Candle timeframe — 15m, 30m, 1h, 4h, 1d
     """
-    from agents.signal_agent import SignalAgent
     import uuid
+
+    from agents.signal_agent import SignalAgent
     agent = SignalAgent()
     result = await agent.analyze(
         symbol=symbol,
@@ -178,13 +179,14 @@ async def get_news(
     :param symbol: Trading symbol e.g. BTC/USDT or AAPL
     :param hours: Lookback window in hours (default 24)
     """
-    from config.settings import get_config, reset_config
     import os
+
+    from config.settings import reset_config
     # Temporarily override the lookback setting
     original = os.environ.get("NEWS_LOOKBACK_HOURS")
     os.environ["NEWS_LOOKBACK_HOURS"] = str(hours)
     reset_config()
-    from tools.news_tools import fetch_news, _clear_cache
+    from tools.news_tools import _clear_cache, fetch_news
     _clear_cache()
     result = await fetch_news(symbol)
     # Restore
@@ -320,8 +322,9 @@ async def run_backtest(
     :param timeframe: 15m, 30m, 1h, 4h, 1d
     :param days: Lookback window in days (default 30)
     """
-    from tools.trading_tools import get_ohlcv, run_backtest as _backtest, get_strategy_params
-    ohlcv = await get_ohlcv(symbol=symbol, timeframe=timeframe, limit=days * 24)
+    from tools.trading_tools import get_ohlcv, get_strategy_params
+    from tools.trading_tools import run_backtest as _backtest
+    await get_ohlcv(symbol=symbol, timeframe=timeframe, limit=days * 24)
     params = await get_strategy_params(timeframe=timeframe)
     result = await _backtest(
         symbol=symbol,
@@ -536,8 +539,9 @@ async def run_self_assessment(
     :param symbol: Symbol to assess against (default BTC/USDT)
     :param timeframe: Timeframe to assess (default 1h)
     """
-    from agents.self_assessment import SelfAssessmentAgent
     import uuid
+
+    from agents.self_assessment import SelfAssessmentAgent
     agent = SelfAssessmentAgent()
     result = await agent.assess_and_evolve(
         symbol=symbol,

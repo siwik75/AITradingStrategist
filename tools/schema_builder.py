@@ -3,8 +3,7 @@ Tool Schema Builder — Generates Anthropic tool_use schemas from Python functio
 Compatible with both Anthropic native API and OpenAI-standard (GHO Gateway).
 """
 import inspect
-from typing import get_type_hints, Any, Optional
-
+from typing import Any, get_type_hints
 
 TYPE_MAP = {
     str: "string",
@@ -14,9 +13,9 @@ TYPE_MAP = {
     list: "array",
     dict: "object",
     Any: "string",
-    Optional[str]: "string",
-    Optional[int]: "integer",
-    Optional[float]: "number",
+    str | None: "string",
+    int | None: "integer",
+    float | None: "number",
 }
 
 

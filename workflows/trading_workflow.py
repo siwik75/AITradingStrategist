@@ -7,10 +7,10 @@ Implements the full cycle:
 This workflow demonstrates the StateGraph pattern from the Generali GOSP blueprint,
 showing how multiple specialized agents coordinate through shared state.
 """
-from typing import TypedDict, Annotated, Optional
-from dataclasses import dataclass
-import operator
 import json
+import operator
+from typing import Annotated, TypedDict
+
 import structlog
 
 log = structlog.get_logger()
@@ -29,22 +29,22 @@ class TradingState(TypedDict):
     correlation_id: str
     
     # Market data
-    indicators: Optional[dict]
+    indicators: dict | None
     
     # Signal
-    signal: Optional[dict]
+    signal: dict | None
     
     # Backtest
-    backtest_current: Optional[dict]
-    backtest_proposed: Optional[dict]
+    backtest_current: dict | None
+    backtest_proposed: dict | None
     
     # Self-assessment
-    assessment: Optional[dict]
+    assessment: dict | None
     
     # Strategy params
-    current_params: Optional[dict]
-    proposed_params: Optional[dict]
-    final_params: Optional[dict]
+    current_params: dict | None
+    proposed_params: dict | None
+    final_params: dict | None
     
     # Control
     iteration: int
@@ -115,7 +115,7 @@ async def generate_signal(state: TradingState) -> TradingState:
 
 async def run_current_backtest(state: TradingState) -> TradingState:
     """Node 3: Backtest with current strategy parameters."""
-    from tools.trading_tools import run_backtest, get_strategy_params
+    from tools.trading_tools import get_strategy_params, run_backtest
     
     log.info("workflow.node.run_current_backtest",
         correlation_id=state["correlation_id"],
@@ -167,8 +167,9 @@ async def self_assess(state: TradingState) -> TradingState:
             decision = assessment.get("decision", "REJECT")
             if decision in ("ADOPT", "PARTIAL") and final_params:
                 try:
-                    from tools.trading_tools import save_strategy_params
                     import json as _json
+
+                    from tools.trading_tools import save_strategy_params
                     await save_strategy_params(
                         _json.dumps(final_params),
                         timeframe=state["timeframe"],
@@ -237,7 +238,7 @@ def build_trading_workflow():
                           → end
     """
     try:
-        from langgraph.graph import StateGraph, END
+        from langgraph.graph import END, StateGraph
         
         graph = StateGraph(TradingState)
         

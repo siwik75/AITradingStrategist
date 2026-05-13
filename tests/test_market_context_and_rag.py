@@ -10,8 +10,7 @@ Tests for the v2 trading intelligence layer:
 """
 # ruff: noqa: I001
 
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

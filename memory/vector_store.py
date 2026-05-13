@@ -193,7 +193,7 @@ class ChromaVectorStore:
         result = self._collection.query(
             query_embeddings=vec,
             n_results=top_k,
-            where=where or None,
+            where=_chroma_where(where),
         )
         return _unpack_query_result(result)
 
@@ -393,6 +393,18 @@ def build_outcome_metadata(prediction: dict, evaluation: dict) -> dict:
 # =============================================================================
 # INTERNAL HELPERS
 # =============================================================================
+
+def _chroma_where(where: dict[str, Any] | None) -> dict[str, Any] | None:
+    """
+    Chroma requires multi-key filters to be wrapped with an explicit $and operator.
+    Single-key filters can be passed as-is. Returns None for empty/missing filters.
+    """
+    if not where:
+        return None
+    if len(where) == 1:
+        return where
+    return {"$and": [{k: v} for k, v in where.items()]}
+
 
 def _flatten_metadata(meta: dict[str, Any]) -> dict[str, Any]:
     """Chroma metadata values must be str/int/float/bool. Coerce or drop the rest."""

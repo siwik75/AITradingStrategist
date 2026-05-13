@@ -18,10 +18,10 @@ Optional:
     TELEGRAM_THREAD_ID  — message thread id for forum channels
 """
 import json
-import uuid
 import re
-from html import escape, unescape
+import uuid
 from datetime import UTC, datetime
+from html import escape, unescape
 from typing import Any
 
 import structlog
@@ -218,8 +218,8 @@ class TelegramPublisher:
         POST to Telegram Bot API sendMessage endpoint.
         Returns the Telegram message_id on success.
         """
-        import urllib.request
         import urllib.error
+        import urllib.request
 
         url = f"https://api.telegram.org/bot{self._token}/sendMessage"
         payload = self._build_payload(text=text, parse_mode="HTML")
